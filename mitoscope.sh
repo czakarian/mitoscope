@@ -54,7 +54,7 @@ fi
 
 # export MITOSCOPE_ROOT="$(dirname "$(readlink -f "${BASH_SOURCE}")")"
 # TODO: set path to your copy of mitoscope
-export MITOSCOPE_ROOT="/net/nwgc/vol1/techdev/mitoscope"
+export MITOSCOPE_ROOT="/net/nwgc/vol1/home/czaka/tools/mitoscope"
 
 export MITOSCOPE_RESOURCES="${MITOSCOPE_ROOT}/resources"
 export MITOSCOPE_SINGULARITY="${MITOSCOPE_ROOT}/singularity"
