@@ -1,0 +1,10 @@
+digraph {
+// disjointcyclic subgraphs
+// file = test.MT.assembly.cn24.disjointcyclic.gv
+// |subgraphs| = 0
+// data = ../assembly_graph.gv
+// cn >= 24
+nodesep = 1.0;
+node [shape = point, label = "", height = 0.2, fillcolor="lightgrey", color="grey"];
+edge [fontsize="20pt", fontname="Arial"];
+}

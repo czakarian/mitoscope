@@ -1,0 +1,133 @@
+# Minimum read support = 2
+# Assumed 25x coverage, using covCN 12
+== Tue Jul 16 00:19:43 PDT 2024 == MT candidate fastq generation STARTED
+== Tue Jul 16 00:19:44 PDT 2024 == MT candidate fastq generation ENDED
+== Tue Jul 16 00:19:44 PDT 2024 == MT candidate fastq compression STARTED
+== Tue Jul 16 00:19:44 PDT 2024 == MT candidate fastq compression ENDED
+== Tue Jul 16 00:19:44 PDT 2024 == de Novo MT assembly STARTED
+== Tue Jul 16 00:19:56 PDT 2024 == de Novo MT assembly COMPLETED
+== Tue Jul 16 00:19:56 PDT 2024 == MT candidates fastq assembly mapping STARTED
+== Tue Jul 16 00:19:58 PDT 2024 == Generating bedgraph for /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.bam..
+== Tue Jul 16 00:19:58 PDT 2024 == Generating bigwig for /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.bam..
+== Tue Jul 16 00:19:59 PDT 2024 == Done.
+== Tue Jul 16 00:19:59 PDT 2024 == MT candidates fastq assembly mapping COMPLETED
+== Tue Jul 16 00:19:59 PDT 2024 == MT candidates fastq variantion against assembly STARTED
+2024-07-16 00:20:03,008 INFO sniffles.main (4036524): Running Sniffles2, build 2.3.3
+2024-07-16 00:20:03,008 INFO sniffles.main (4036524):   Run Mode: call_sample
+2024-07-16 00:20:03,008 INFO sniffles.main (4036524):   Start on: 2024/07/16 00:20:03
+2024-07-16 00:20:03,008 INFO sniffles.main (4036524):   Working dir: /net/nwgc/vol1/techdev/mitoscope/data/test
+2024-07-16 00:20:03,009 INFO sniffles.main (4036524):   Used command: /net/gs/vol3/software/modules-sw-python/3.10.14_spec/sniffles/2.3.3/Linux/Ubuntu22.04/x86_64/lib/python3.12/site-packages/bin/sniffles --qc-output-all --allow-overwrite --minsupport 2 --input /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.bam --vcf /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.bam.raw.vcf
+2024-07-16 00:20:03,009 INFO sniffles.main (4036524): ==============================
+2024-07-16 00:20:03,281 INFO sniffles.main (4036524): Opening for reading: /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.bam
+2024-07-16 00:20:03,286 INFO sniffles.main (4036524): Opening for writing: /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.bam.raw.vcf (single-sample, sorted)
+2024-07-16 00:20:03,378 INFO sniffles.main (4036524): 
+2024-07-16 00:20:03,378 INFO sniffles.main (4036524): Analyzing 7 alignments total...
+2024-07-16 00:20:03,378 INFO sniffles.main (4036524): 
+2024-07-16 00:20:03,378 INFO sniffles.worker (4036524): Starting worker 0
+2024-07-16 00:20:03,384 INFO sniffles.worker (4036524): Starting worker 1
+2024-07-16 00:20:03,388 INFO sniffles.worker (4036524): Starting worker 2
+2024-07-16 00:20:03,392 INFO sniffles.worker (4036524): Starting worker 3
+2024-07-16 00:20:03,397 INFO sniffles.worker (4036524): Dispatched task #0 to worker 0 (0  tasks left)
+2024-07-16 00:20:03,398 INFO sniffles.worker (4036524): Worker 1 shutting down...
+2024-07-16 00:20:03,398 INFO sniffles.worker (4036524): Worker 2 shutting down...
+2024-07-16 00:20:03,399 INFO sniffles.worker (4036524): Worker 3 shutting down...
+2024-07-16 00:20:03,499 INFO sniffles.worker (4036524): Worker 0 got result for task #0
+2024-07-16 00:20:03,600 INFO sniffles.worker (4036524): Worker 0 shutting down...
+2024-07-16 00:20:03,602 INFO sniffles.worker (4036524): Worker 0 done (code 0).
+2024-07-16 00:20:03,603 INFO sniffles.worker (4036524): Worker 1 done (code 0).
+2024-07-16 00:20:03,603 INFO sniffles.worker (4036524): Worker 2 done (code 0).
+2024-07-16 00:20:03,603 INFO sniffles.worker (4036524): Worker 3 done (code 0).
+2024-07-16 00:20:03,603 INFO sniffles.main (4036524): Took 0.23s.
+2024-07-16 00:20:03,604 INFO sniffles.main (4036524): 
+2024-07-16 00:20:03,605 INFO sniffles.main (4036524): Wrote 1 called SVs to /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.bam.raw.vcf (single-sample, sorted)
+== Tue Jul 16 00:20:03 PDT 2024 == MT candidates fastq variantion against assembly COMPLETED
+== Tue Jul 16 00:20:03 PDT 2024 == Assembly reference mapping STARTED
+== Tue Jul 16 00:20:04 PDT 2024 == Generating bedgraph for /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.ref.bam..
+== Tue Jul 16 00:20:04 PDT 2024 == Generating bigwig for /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.ref.bam..
+== Tue Jul 16 00:20:05 PDT 2024 == Done.
+== Tue Jul 16 00:20:05 PDT 2024 == Assembly reference mapping COMPLETED
+== Tue Jul 16 00:20:05 PDT 2024 == Assembly variation against reference STARTED
+2024-07-16 00:20:05,715 INFO sniffles.main (4036866): Running Sniffles2, build 2.3.3
+2024-07-16 00:20:05,716 INFO sniffles.main (4036866):   Run Mode: call_sample
+2024-07-16 00:20:05,716 INFO sniffles.main (4036866):   Start on: 2024/07/16 00:20:05
+2024-07-16 00:20:05,716 INFO sniffles.main (4036866):   Working dir: /net/nwgc/vol1/techdev/mitoscope/data/test
+2024-07-16 00:20:05,716 INFO sniffles.main (4036866):   Used command: /net/gs/vol3/software/modules-sw-python/3.10.14_spec/sniffles/2.3.3/Linux/Ubuntu22.04/x86_64/lib/python3.12/site-packages/bin/sniffles --qc-output-all --allow-overwrite --input /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.ref.bam --vcf /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.ref.bam.raw.vcf
+2024-07-16 00:20:05,716 INFO sniffles.main (4036866): ==============================
+2024-07-16 00:20:05,774 INFO sniffles.main (4036866): Opening for reading: /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.ref.bam
+2024-07-16 00:20:05,778 INFO sniffles.main (4036866): Opening for writing: /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.ref.bam.raw.vcf (single-sample, sorted)
+2024-07-16 00:20:05,783 INFO sniffles.main (4036866): 
+2024-07-16 00:20:05,784 INFO sniffles.main (4036866): Analyzing 2 alignments total...
+2024-07-16 00:20:05,784 INFO sniffles.main (4036866): 
+2024-07-16 00:20:05,784 INFO sniffles.worker (4036866): Starting worker 0
+2024-07-16 00:20:05,788 INFO sniffles.worker (4036866): Starting worker 1
+2024-07-16 00:20:05,792 INFO sniffles.worker (4036866): Starting worker 2
+2024-07-16 00:20:05,796 INFO sniffles.worker (4036866): Starting worker 3
+2024-07-16 00:20:05,801 INFO sniffles.worker (4036866): Dispatched task #0 to worker 0 (0  tasks left)
+2024-07-16 00:20:05,802 INFO sniffles.worker (4036866): Worker 1 shutting down...
+2024-07-16 00:20:05,802 INFO sniffles.worker (4036866): Worker 2 shutting down...
+2024-07-16 00:20:05,803 INFO sniffles.worker (4036866): Worker 3 shutting down...
+2024-07-16 00:20:05,904 INFO sniffles.worker (4036866): Worker 0 got result for task #0
+2024-07-16 00:20:06,004 INFO sniffles.worker (4036866): Worker 0 shutting down...
+2024-07-16 00:20:06,007 INFO sniffles.worker (4036866): Worker 0 done (code 0).
+2024-07-16 00:20:06,007 INFO sniffles.worker (4036866): Worker 1 done (code 0).
+2024-07-16 00:20:06,007 INFO sniffles.worker (4036866): Worker 2 done (code 0).
+2024-07-16 00:20:06,007 INFO sniffles.worker (4036866): Worker 3 done (code 0).
+2024-07-16 00:20:06,007 INFO sniffles.main (4036866): Took 0.22s.
+2024-07-16 00:20:06,007 INFO sniffles.main (4036866): 
+2024-07-16 00:20:06,009 INFO sniffles.main (4036866): Wrote 1 called SVs to /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/test.MT.assembly.ref.bam.raw.vcf (single-sample, sorted)
+== Tue Jul 16 00:20:06 PDT 2024 == Assembly variation against reference COMPLETED
+== Tue Jul 16 00:20:06 PDT 2024 == MT candidates fastq reference mapping STARTED
+== Tue Jul 16 00:20:06 PDT 2024 == Generating bedgraph for /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/debug/test.MT.ref.bam..
+== Tue Jul 16 00:20:07 PDT 2024 == Generating bigwig for /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/debug/test.MT.ref.bam..
+== Tue Jul 16 00:20:07 PDT 2024 == Done.
+== Tue Jul 16 00:20:07 PDT 2024 == MT candidates fastq reference mapping COMPLETED
+== Tue Jul 16 00:20:07 PDT 2024 == MT candidates fastq variantion against reference STARTED
+2024-07-16 00:20:08,071 INFO sniffles.main (4037204): Running Sniffles2, build 2.3.3
+2024-07-16 00:20:08,071 INFO sniffles.main (4037204):   Run Mode: call_sample
+2024-07-16 00:20:08,071 INFO sniffles.main (4037204):   Start on: 2024/07/16 00:20:08
+2024-07-16 00:20:08,071 INFO sniffles.main (4037204):   Working dir: /net/nwgc/vol1/techdev/mitoscope/data/test
+2024-07-16 00:20:08,071 INFO sniffles.main (4037204):   Used command: /net/gs/vol3/software/modules-sw-python/3.10.14_spec/sniffles/2.3.3/Linux/Ubuntu22.04/x86_64/lib/python3.12/site-packages/bin/sniffles --qc-output-all --allow-overwrite --minsupport 2 --input /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/debug/test.MT.ref.bam --vcf /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/debug/test.MT.ref.bam.raw.vcf
+2024-07-16 00:20:08,071 INFO sniffles.main (4037204): ==============================
+2024-07-16 00:20:08,134 INFO sniffles.main (4037204): Opening for reading: /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/debug/test.MT.ref.bam
+2024-07-16 00:20:08,138 INFO sniffles.main (4037204): Opening for writing: /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/debug/test.MT.ref.bam.raw.vcf (single-sample, sorted)
+2024-07-16 00:20:08,144 INFO sniffles.main (4037204): 
+2024-07-16 00:20:08,144 INFO sniffles.main (4037204): Analyzing 8 alignments total...
+2024-07-16 00:20:08,144 INFO sniffles.main (4037204): 
+2024-07-16 00:20:08,144 INFO sniffles.worker (4037204): Starting worker 0
+2024-07-16 00:20:08,149 INFO sniffles.worker (4037204): Starting worker 1
+2024-07-16 00:20:08,153 INFO sniffles.worker (4037204): Starting worker 2
+2024-07-16 00:20:08,158 INFO sniffles.worker (4037204): Starting worker 3
+2024-07-16 00:20:08,164 INFO sniffles.worker (4037204): Dispatched task #0 to worker 0 (0  tasks left)
+2024-07-16 00:20:08,164 INFO sniffles.worker (4037204): Worker 1 shutting down...
+2024-07-16 00:20:08,165 INFO sniffles.worker (4037204): Worker 2 shutting down...
+2024-07-16 00:20:08,165 INFO sniffles.worker (4037204): Worker 3 shutting down...
+2024-07-16 00:20:08,266 INFO sniffles.worker (4037204): Worker 0 got result for task #0
+2024-07-16 00:20:08,366 INFO sniffles.worker (4037204): Worker 0 shutting down...
+2024-07-16 00:20:08,369 INFO sniffles.worker (4037204): Worker 0 done (code 0).
+2024-07-16 00:20:08,370 INFO sniffles.worker (4037204): Worker 1 done (code 0).
+2024-07-16 00:20:08,370 INFO sniffles.worker (4037204): Worker 2 done (code 0).
+2024-07-16 00:20:08,370 INFO sniffles.worker (4037204): Worker 3 done (code 0).
+2024-07-16 00:20:08,370 INFO sniffles.main (4037204): Took 0.23s.
+2024-07-16 00:20:08,370 INFO sniffles.main (4037204): 
+2024-07-16 00:20:08,371 INFO sniffles.main (4037204): Wrote 1 called SVs to /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/debug/test.MT.ref.bam.raw.vcf (single-sample, sorted)
+== Tue Jul 16 00:20:08 PDT 2024 == MT candidates fastq variantion against reference COMPLETED
+== Tue Jul 16 00:20:08 PDT 2024 == Graph_before reference mapping STARTED
+== Tue Jul 16 00:20:09 PDT 2024 == Generating bedgraph for /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/debug/test.MT.graph_before_rr.ref.bam..
+== Tue Jul 16 00:20:09 PDT 2024 == Generating bigwig for /net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/debug/test.MT.graph_before_rr.ref.bam..
+== Tue Jul 16 00:20:10 PDT 2024 == Done.
+== Tue Jul 16 00:20:10 PDT 2024 == Graph_before fastq reference mapping COMPLETED
+== Tue Jul 16 00:20:10 PDT 2024 == Subpopulations generation STARTED
+/net/nwgc/vol1/techdev/mitoscope/data/test/mitoscope/MT_assembly/sieved_graph /net/nwgc/vol1/techdev/mitoscope/data/test
+== Tue Jul 16 00:20:10 PDT 2024 == check assembly graph for circular genome..
+== Tue Jul 16 00:20:10 PDT 2024 == subpopulation script setup..
+== Tue Jul 16 00:20:10 PDT 2024 == writing possible subpopulations..
+Tue Jul 16 00:20:10 PDT 2024 Done.
+== Tue Jul 16 00:20:10 PDT 2024 == variations calling on possible subpopulations..
+Tue Jul 16 00:20:10 PDT 2024 Done.
+== Tue Jul 16 00:20:10 PDT 2024 == refining alignments possible subpopulations..
+/net/nwgc/vol1/techdev/mitoscope/data/test
+
+#####
+# INFO: Single assembled contig.
+#####
+== Tue Jul 16 00:20:10 PDT 2024 == Subpopulations generation COMPLETED
