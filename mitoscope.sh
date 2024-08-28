@@ -96,13 +96,23 @@ module load sniffles/2.3.3
 echo '==' $(date) '==' MT candidate fastq generation STARTED
 time (${KMCTOOLSCMD} -t${KMCTOOLSTHREADS} filter \
 ${MITOSCOPE_RESOURCES}/MT.k29 -ci1 ${FASTQ} \
--fq -ci2500 ${RESULTDIR}/${FASTQPREFIX}.MT.fastq) &
+-fq -ci2500 ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq) &
 wait
 echo '==' $(date) '==' MT candidate fastq generation ENDED
-echo '==' $(date) '==' MT candidate fastq compression STARTED
-time (pigz -p ${PIGZTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq) &
+echo '==' $(date) '==' MT oversized candidate removal STARTED
+(cat ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq \
+| perl -e 'while ($L1=<STDIN>) { $L2=<STDIN>; $L3=<STDIN>; $L4=<STDIN>;
+  chomp($L2); if (length($L2)<=16569) {
+    print $L1; print $L2,"\n"; print $L3; print $L4;
+  }
+}' \
+| pigz -p ${PIGZTHREADS} - > ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz) &
 wait
-echo '==' $(date) '==' MT candidate fastq compression ENDED
+echo '==' $(date) '==' MT oversized candidate removal ENDED
+echo '==' $(date) '==' MT all candidate fastq compression STARTED
+time (pigz -p ${PIGZTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq) &
+wait
+echo '==' $(date) '==' MT all candidate fastq compression ENDED
 #
 
 # assemble the selected long-reads
@@ -139,6 +149,7 @@ echo '==' $(date) '==' MT candidates fastq assembly mapping COMPLETED
 # call variations of selected long-reads w.r.t. assembled contig(s)
 echo '==' $(date) '==' MT candidates fastq variantion against assembly STARTED
 sniffles \
+--output-rnames \
 --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
 --input ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam \
@@ -171,6 +182,7 @@ echo '==' $(date) '==' Assembly reference mapping COMPLETED
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly variation against reference STARTED
 sniffles \
+--output-rnames \
 --qc-output-all --allow-overwrite \
 --input ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam \
 --vcf ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam.raw.vcf
@@ -200,6 +212,7 @@ echo '==' $(date) '==' MT candidates fastq reference mapping COMPLETED
 # for debugging
 echo '==' $(date) '==' MT candidates fastq variantion against reference STARTED
 sniffles \
+--output-rnames \
 --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
 --input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam \
