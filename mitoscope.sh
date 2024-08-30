@@ -17,8 +17,7 @@
 # PENDING (technical):
 # T1. Convert to nextflow for parallel execution of non-dependent 
 #     subjobs
-# T2. containerize sniffles
-# T3. use containerized samtools in cgSupPop.pl, cgbam.pl, ecLegov2.pl
+# T2. use containerized samtools in cgSupPop.pl, cgbam.pl, ecLegov2.pl
 #
 # NOTE:
 # N1. .gv visualization with https://dreampuf.github.io/GraphvizOnline/
@@ -65,6 +64,8 @@ export SAMTOOLSCMD="${MITOSCOPE_SINGULARITY}/samtools_v1.15.1.sif samtools"
 export GENOMECOVERAGEBEDCMD="${MITOSCOPE_SINGULARITY}/bedtools_2.31.0.sif genomeCoverageBed"
 export SORTBEDCMD="${MITOSCOPE_SINGULARITY}/bedtools_2.31.0.sif sortBed"
 export BG2BWCMD="${MITOSCOPE_SINGULARITY}/ucsc-bedgraphtobigwig_445.sif bedGraphToBigWig"
+export SNIFFLESCMD="${MITOSCOPE_SINGULARITY}/sniffles_2.3.3.sif sniffles"
+export BCFTOOLSCMD="${MITOSCOPE_SINGULARITY}/bcftools_1.19.sif bcftools"
 
 export FASTQDIR="$(dirname "$(readlink -f "${FASTQ}")")"
 export RESULTDIR=${FASTQDIR}/mitoscope
@@ -78,19 +79,16 @@ export FASTQPREFIX="${FASTQPREFIX%.*}"
 
 export SINGULARITY_BINDPATH="${MITOSCOPE_ROOT},${FASTQDIR}"
 
-export KMCTOOLSTHREADS=4
-export PIGZTHREADS=4
-export MINIMAP2THREADS=4
-export SAMTOOLSTHREADS=4
-export FLYETHREADS=4
+export KMCTOOLSTHREADS=8
+export PIGZTHREADS=8
+export MINIMAP2THREADS=8
+export SAMTOOLSTHREADS=8
+export FLYETHREADS=8
 export FLYEMINOVERLAP=2500
 
+# TODO: use containerized samtools in cgbam.pl, cgSupPop.pl, ecLegov2.pl
 module load modules{,-init,-gs}
 module load samtools/1.17
-module load bcftools/1.19
-# TODO: to containerize
-module load python/3.10.14_spec
-module load sniffles/2.3.3
 
 # select long-reads which are likely from MT
 echo '==' $(date) '==' MT candidate fastq generation STARTED
@@ -147,16 +145,19 @@ echo '==' $(date) '==' MT candidates fastq assembly mapping COMPLETED
 
 # TODO: to containerize
 # call variations of selected long-reads w.r.t. assembled contig(s)
-echo '==' $(date) '==' MT candidates fastq variantion against assembly STARTED
-sniffles \
+echo '==' $(date) '==' MT candidates fastq variation against assembly STARTED
+${SNIFFLESCMD} \
 --output-rnames \
 --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
 --input ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam \
 --vcf ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf
-bcftools filter -i "SUPPORT>=${MINREADSUPPORT}" ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf \
+
+${BCFTOOLSCMD} filter \
+-i "SUPPORT>=${MINREADSUPPORT}" \
+${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf \
 > ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.ge${MINREADSUPPORT}.vcf
-echo '==' $(date) '==' MT candidates fastq variantion against assembly COMPLETED
+echo '==' $(date) '==' MT candidates fastq variation against assembly COMPLETED
 #
 
 # for inter-sample anchoring + debugging
@@ -181,7 +182,7 @@ echo '==' $(date) '==' Assembly reference mapping COMPLETED
 # TODO: to containerize
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly variation against reference STARTED
-sniffles \
+${SNIFFLESCMD} \
 --output-rnames \
 --qc-output-all --allow-overwrite \
 --input ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam \
@@ -210,16 +211,19 @@ echo '==' $(date) '==' MT candidates fastq reference mapping COMPLETED
 
 # TODO: to containerize
 # for debugging
-echo '==' $(date) '==' MT candidates fastq variantion against reference STARTED
-sniffles \
+echo '==' $(date) '==' MT candidates fastq variation against reference STARTED
+${SNIFFLESCMD} \
 --output-rnames \
 --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
 --input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam \
 --vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf
-bcftools filter -i "SUPPORT>=${MINREADSUPPORT}" ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf \
+
+${BCFTOOLSCMD} filter \
+-i "SUPPORT>=${MINREADSUPPORT}" \
+${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf \
 > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.ge${MINREADSUPPORT}.vcf
-echo '==' $(date) '==' MT candidates fastq variantion against reference COMPLETED
+echo '==' $(date) '==' MT candidates fastq variation against reference COMPLETED
 #
 
 # for debugging

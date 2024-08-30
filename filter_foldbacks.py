@@ -28,14 +28,13 @@ def is_foldback(strands):
     else:
         return False
 
-## initialize 
 read_counts = {"discarded": 0, "kept_sup": 0, "kept_nonsup": 0}
 
 fr = pysam.AlignmentFile(args.input, 'rb')
 fw = pysam.AlignmentFile(args.output, 'wb', template= fr)
 fd = pysam.AlignmentFile(args.discard, 'wb', template= fr)
 
-## beging parse the input bam
+## begin parse the input bam
 for line in fr:
     if line.has_tag('SA'):
         
