@@ -143,7 +143,7 @@ $0 tablebam --bam <bamFile> --easycoord --bed
 	
 	die "$G_USAGE" if ($help);
 
-  open INFILE, "samtools view -h -F 0x700 $bamFile | " || die "Fail to open $bamFile\n$!\n";
+  open INFILE, "$ENV{'SAMTOOLSCMD'} view -h -F 0x700 $bamFile | " || die "Fail to open $bamFile\n$!\n";
   my %excludeIds = ();
   grep { $excludeIds{$_} = 1; } @excludeIds;
   my @readids = ();
@@ -796,8 +796,8 @@ $0 tablebam --bam <bamFile> --alignment <alignmentFile>
   # generate bam by query
   my $queryBam = sprintf("%s.rep.anno.query.bam", $bamPrefix);
 
-  open INFILE, "samtools view -h -F 0x700 $bamFile | " || die "Fail to open $bamFile\n$!\n";
-  open OUTFILE, "| samtools view -b -o $queryBam -" || die "Fail to open $queryBam\n$!\n";
+  open INFILE, "$ENV{'SAMTOOLSCMD'} view -h -F 0x700 $bamFile | " || die "Fail to open $bamFile\n$!\n";
+  open OUTFILE, "| $ENV{'SAMTOOLSCMD'} view -b -o $queryBam -" || die "Fail to open $queryBam\n$!\n";
   my @readids = ();
   my %reads = ();
   my %refLens = ();
@@ -920,14 +920,14 @@ $0 tablebam --bam <bamFile> --alignment <alignmentFile>
   # TODO: generate bam by coordinates
   # samtools sort -o A12.sup.sG5_1.CGs.rep.anno.bam -
   my $coordBam = sprintf("%s.rep.anno.bam", $bamPrefix);
-  my @commands = ('samtools', 'sort', '-o', $coordBam, $queryBam);
+  my @commands = ("$ENV{'SAMTOOLSCMD'} sort -o $coordBam $queryBam");
   system(@commands) == 0
       or die "system @commands failed: $?";
   print "$coordBam written.\n";
 
   # TODO: index coord bam
   # samtools index A12.sup.sG5_1.CGs.rep.anno.bam
-  @commands = ('samtools', 'index', $coordBam);
+  @commands = ("$ENV{'SAMTOOLSCMD'} index $coordBam");
   system(@commands) == 0
       or die "system @commands failed: $?";
   print "$coordBam.bai written.\n";

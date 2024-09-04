@@ -1228,8 +1228,8 @@ sub graphBamFile {
   # stream bam headers
   # read bam record and inject tags
   # index new bam file
-  open INFILE, "samtools view -h $bamFile | " || die "Fail to open $bamFile\n$!\n";
-  open OUTFILE, "|samtools view -b - >  $file" || die "Fail to open $file\n$!\n";
+  open INFILE, "$ENV{'SAMTOOLSCMD'} view -h $bamFile | " || die "Fail to open $bamFile\n$!\n";
+  open OUTFILE, "| $ENV{'SAMTOOLSCMD'} view -b - >  $file" || die "Fail to open $file\n$!\n";
   while (<INFILE>) {
     if (/^@/) {
       print OUTFILE $_;
@@ -1261,7 +1261,7 @@ sub graphBamFile {
   }
   close OUTFILE;
   close INFILE;
-  system("samtools index $file");
+  system("$ENV{'SAMTOOLSCMD'} index $file");
 }
 
 sub sieveGraph {

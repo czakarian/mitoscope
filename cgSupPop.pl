@@ -435,6 +435,8 @@ sub writeMapSVCall {
     print OUTFILE 'export MINIMAP2THREADS=4', "\n";
     print OUTFILE 'export SAMTOOLSCMD="${ECLEGO_ROOT}/pipeline/samtools_v1.15.1.sif samtools"', "\n";
     print OUTFILE 'export SAMTOOLSTHREADS=4', "\n";
+    print OUTFILE 'export SNIFFLESCMD="${ECLEGO_ROOT}/pipeline/sniffles_v2.3.3.sif sniffles"', "\n";
+    print OUTFILE 'export SNIFFLESTHREADS=4', "\n";
     print OUTFILE "\n";
 
     print OUTFILE "# mapping\n";
@@ -447,22 +449,22 @@ sub writeMapSVCall {
     print OUTFILE "# sv calling\n";
     printf OUTFILE "export BAMFILE=%s\n", $bamFile;
     print OUTFILE 'echo $(date) SV Calling pass minsupport=1..', "\n";
-    print OUTFILE 'sniffles --allow-overwrite --minsupport 1 --reference ${REFGENOME} --input ${BAMFILE} --vcf ${BAMFILE}.pass.vcf', "\n";
+    print OUTFILE '${SNIFFLESCMD} --allow-overwrite --minsupport 1 --reference ${REFGENOME} --input ${BAMFILE} --vcf ${BAMFILE}.pass.vcf', "\n";
     print OUTFILE "\n";
 
     print OUTFILE "# sv calling for various lengths\n";
     print OUTFILE 'for i in 20 10 5 1 ; do \\', "\n";
     print OUTFILE 'echo $(date) SV Calling pass minsupport=1 minsvlen=${i}.. ; \\', "\n";
-    print OUTFILE 'sniffles --allow-overwrite --minsupport 1 --minsvlen ${i} --reference ${REFGENOME} --input ${BAMFILE} --vcf ${BAMFILE}.pass.minlen${i}.vcf ; \\', "\n";
+    print OUTFILE '${SNIFFLESCMD} --allow-overwrite --minsupport 1 --minsvlen ${i} --reference ${REFGENOME} --input ${BAMFILE} --vcf ${BAMFILE}.pass.minlen${i}.vcf ; \\', "\n";
     print OUTFILE 'done', "\n";     
     print OUTFILE "\n";
 
     print OUTFILE "# for comprehensiveness\n";
-    print OUTFILE 'sniffles --qc-output-all --allow-overwrite --reference ${REFGENOME} --input ${BAMFILE} --vcf ${BAMFILE}.raw.vcf', "\n";
+    print OUTFILE '${SNIFFLESCMD} --qc-output-all --allow-overwrite --reference ${REFGENOME} --input ${BAMFILE} --vcf ${BAMFILE}.raw.vcf', "\n";
     print OUTFILE "\n";
 
     print OUTFILE "# for support read ids (future use))\n";
-    print OUTFILE 'sniffles --output-rnames --qc-output-all --allow-overwrite --minsupport 1 --reference ${REFGENOME} --input ${BAMFILE} --vcf ${BAMFILE}.pass.vcf.temp', "\n";
+    print OUTFILE '${SNIFFLESCMD} --output-rnames --qc-output-all --allow-overwrite --minsupport 1 --reference ${REFGENOME} --input ${BAMFILE} --vcf ${BAMFILE}.pass.vcf.temp', "\n";
     print OUTFILE "\n";
   }
 

@@ -17,7 +17,6 @@
 # PENDING (technical):
 # T1. Convert to nextflow for parallel execution of non-dependent 
 #     subjobs
-# T2. use containerized samtools in cgSupPop.pl, cgbam.pl, ecLegov2.pl
 #
 # NOTE:
 # N1. .gv visualization with https://dreampuf.github.io/GraphvizOnline/
@@ -85,10 +84,6 @@ export MINIMAP2THREADS=8
 export SAMTOOLSTHREADS=8
 export FLYETHREADS=8
 export FLYEMINOVERLAP=2500
-
-# TODO: use containerized samtools in cgbam.pl, cgSupPop.pl, ecLegov2.pl
-module load modules{,-init,-gs}
-module load samtools/1.17
 
 # select long-reads which are likely from MT
 echo '==' $(date) '==' MT candidate fastq generation STARTED
