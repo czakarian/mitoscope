@@ -113,10 +113,57 @@ wait
 echo '==' $(date) '==' MT all candidate fastq compression ENDED
 #
 
+
+# for foldback filtration + debugging
+echo '==' $(date) '==' MT candidates fastq reference mapping STARTED
+(${MINIMAP2CMD} -ax map-ont -t ${MINIMAP2THREADS} \
+"${MITOSCOPE_RESOURCES}/MT.mmi" \
+${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
+| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
+${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
+export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam; \
+export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
+echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
+${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} \
+| ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
+echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
+${BG2BWCMD} ${DSNAME}.bg "${MITOSCOPE_RESOURCES}/MT.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
+echo '==' $(date) '==' Done. ) &
+wait
+echo '==' $(date) '==' MT candidates fastq reference mapping COMPLETED
+#
+
+# for debugging
+echo '==' $(date) '==' MT candidates fastq variation against reference STARTED
+${SNIFFLESCMD} \
+--output-rnames \
+--qc-output-all --allow-overwrite \
+--minsupport ${MINREADSUPPORT} \
+--input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam \
+--vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf
+
+${BCFTOOLSCMD} filter \
+-i "SUPPORT>=${MINREADSUPPORT}" \
+${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf \
+> ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.ge${MINREADSUPPORT}.vcf
+echo '==' $(date) '==' MT candidates fastq variation against reference COMPLETED
+#       
+
+# remove foldback reads before assembly
+echo '==' $(date) '==' Removal of foldback MT candidates STARTED
+python ${MITOSCOPE_ROOT}/filter_foldbacks.py \
+-i ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam \
+-o ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.bam \
+-d ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.onlyFB.bam 
+
+${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.bam | pigz -p ${PIGZTHREADS} > ${RESULTDIR}/${FASTQPREFIX}.MT.noFB.fastq.gz
+echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
+#
+
 # assemble the selected long-reads
 echo '==' $(date) '==' de Novo MT assembly STARTED
 ${FLYECMD} --threads ${FLYETHREADS} --meta \
---nano-hq ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
+--nano-hq ${RESULTDIR}/${FASTQPREFIX}.MT.noFB.fastq.gz \
 --out-dir ${RESULTDIR}/MT_assembly \
 -m ${FLYEMINOVERLAP} &
 wait
@@ -127,7 +174,7 @@ echo '==' $(date) '==' de Novo MT assembly COMPLETED
 echo '==' $(date) '==' MT candidates fastq assembly mapping STARTED
 (${MINIMAP2CMD} -ax map-ont -t ${MINIMAP2THREADS} \
 "${RESULTDIR}/MT_assembly/assembly.fasta" \
-${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
+${RESULTDIR}/${FASTQPREFIX}.MT.noFB.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam; \
@@ -143,7 +190,6 @@ wait
 echo '==' $(date) '==' MT candidates fastq assembly mapping COMPLETED
 #
 
-# TODO: to containerize
 # call variations of selected long-reads w.r.t. assembled contig(s)
 echo '==' $(date) '==' MT candidates fastq variation against assembly STARTED
 ${SNIFFLESCMD} \
@@ -179,7 +225,6 @@ wait
 echo '==' $(date) '==' Assembly reference mapping COMPLETED
 #
 
-# TODO: to containerize
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly variation against reference STARTED
 ${SNIFFLESCMD} \
@@ -190,41 +235,6 @@ ${SNIFFLESCMD} \
 echo '==' $(date) '==' Assembly variation against reference COMPLETED
 #
 
-# for debugging
-echo '==' $(date) '==' MT candidates fastq reference mapping STARTED
-(${MINIMAP2CMD} -ax map-ont -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/MT.mmi" \
-${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
-| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
-${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
-export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam; \
-export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
-echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
-${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} \
-| ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
-echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
-${BG2BWCMD} ${DSNAME}.bg "${MITOSCOPE_RESOURCES}/MT.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
-echo '==' $(date) '==' Done. ) &
-wait
-echo '==' $(date) '==' MT candidates fastq reference mapping COMPLETED
-#
-
-# TODO: to containerize
-# for debugging
-echo '==' $(date) '==' MT candidates fastq variation against reference STARTED
-${SNIFFLESCMD} \
---output-rnames \
---qc-output-all --allow-overwrite \
---minsupport ${MINREADSUPPORT} \
---input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam \
---vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf
-
-${BCFTOOLSCMD} filter \
--i "SUPPORT>=${MINREADSUPPORT}" \
-${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf \
-> ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.ge${MINREADSUPPORT}.vcf
-echo '==' $(date) '==' MT candidates fastq variation against reference COMPLETED
-#
 
 # for debugging
 echo '==' $(date) '==' Graph_before reference mapping STARTED
