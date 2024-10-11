@@ -17,6 +17,8 @@
 # PENDING (technical):
 # T1. Convert to nextflow for parallel execution of non-dependent 
 #     subjobs
+# T2. Add command-line options with getopts
+# T3. add bam to fastq conversion into script?
 #
 # NOTE:
 # N1. .gv visualization with https://dreampuf.github.io/GraphvizOnline/
@@ -28,10 +30,21 @@
 set -eu -o pipefail
 
 export FASTQ=${1}
-export MINREADSUPPORT=${2:-"2"}
-export CNCOV=${3:-""}
+export TECH=${2}
+export THREADS=${3:-"4"}
+export MINREADSUPPORT=${4:-"2"}
+export CNCOV=${5:-""}
 [ -z "${FASTQ}" ] && { echo "Fastq file is empty" ; exit 1; }
 [ ! -f "${FASTQ}" ] && { echo "${FASTQ} does not exist" ; exit 2 ; }
+
+if [ "$TECH" == "ont" ]; then
+    SEQPLATFORM="--nano-hq"
+elif [ "$TECH" == "pb" ]; then
+    SEQPLATFORM="--pacbio-hifi "
+else
+    echo "Error: Platform not recognized. Use 'ont' for Oxford Nanopore or 'pb' for PacBio."
+    exit 1
+fi
 
 echo "# Minimum read support = ${MINREADSUPPORT}"
 covCN=12
@@ -78,11 +91,11 @@ export FASTQPREFIX="${FASTQPREFIX%.*}"
 
 export SINGULARITY_BINDPATH="${MITOSCOPE_ROOT},${FASTQDIR}"
 
-export KMCTOOLSTHREADS=8
-export PIGZTHREADS=8
-export MINIMAP2THREADS=8
-export SAMTOOLSTHREADS=8
-export FLYETHREADS=8
+export KMCTOOLSTHREADS=${THREADS}
+export PIGZTHREADS=${THREADS}
+export MINIMAP2THREADS=${THREADS}
+export SAMTOOLSTHREADS=${THREADS}
+export FLYETHREADS=${THREADS}
 export FLYEMINOVERLAP=2500
 
 # select long-reads which are likely from MT
@@ -158,7 +171,7 @@ echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
 # assemble the selected long-reads
 echo '==' $(date) '==' de Novo MT assembly STARTED
 ${FLYECMD} --threads ${FLYETHREADS} --meta \
---nano-hq ${RESULTDIR}/${FASTQPREFIX}.MT.noFB.fastq.gz \
+${SEQPLATFORM} ${RESULTDIR}/${FASTQPREFIX}.MT.noFB.fastq.gz \
 --out-dir ${RESULTDIR}/MT_assembly \
 -m ${FLYEMINOVERLAP} &
 wait
@@ -277,7 +290,7 @@ cat process.sh.tmp | sed s?t2tv2.fasta?MT.fasta? > process.sh
 chmod u+x *.sh
 echo '==' $(date) '==' writing possible subpopulations..
 ./setup.sh
-echo '==' $(date) '==' variations calling on possible subpopulations..
+echo '==' $(date) '==' variation calling on possible subpopulations..
 ./process.sh
 echo '==' $(date) '==' refining alignments possible subpopulations..
 ./refine.sh
