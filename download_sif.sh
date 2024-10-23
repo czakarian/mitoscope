@@ -24,3 +24,20 @@ echo $(date) - Set up sif execution permission..
 chmod a+rx singularity/
 chmod a+rx singularity/*.sif
 echo $(date) - End of permission set up.
+
+
+echo $(date) - Installing mutserve..
+MUTSERVE_VERSION=2.0.1
+mkdir -p tools/mutserve_${MUTSERVE_VERSION}
+wget -P tools/mutserve_${MUTSERVE_VERSION} https://github.com/seppinho/mutserve/releases/download/v${MUTSERVE_VERSION}/mutserve.zip
+unzip tools/mutserve_${MUTSERVE_VERSION}/mutserve.zip -d tools/mutserve_${MUTSERVE_VERSION} && \
+ rm tools/mutserve_${MUTSERVE_VERSION}/mutserve.zip
+echo $(date) - End of download.
+
+echo $(date) - Installing haplogrep..
+HAPLOGREP_VERSION=3.2.2
+mkdir -p tools/haplogrep_${HAPLOGREP_VERSION}
+wget -P tools/haplogrep_${HAPLOGREP_VERSION} https://github.com/genepi/haplogrep3/releases/download/v${HAPLOGREP_VERSION}/haplogrep3-${HAPLOGREP_VERSION}-linux.zip
+unzip tools/haplogrep_${HAPLOGREP_VERSION}/haplogrep3-${HAPLOGREP_VERSION}-linux.zip -d tools/haplogrep_${HAPLOGREP_VERSION} && \
+ rm tools/haplogrep_${HAPLOGREP_VERSION}/haplogrep3-${HAPLOGREP_VERSION}-linux.zip
+echo $(date) - End of download.

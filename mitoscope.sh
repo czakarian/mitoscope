@@ -69,6 +69,7 @@ export MITOSCOPE_ROOT="/net/nwgc/vol1/home/czaka/tools/mitoscope"
 
 export MITOSCOPE_RESOURCES="${MITOSCOPE_ROOT}/resources"
 export MITOSCOPE_SINGULARITY="${MITOSCOPE_ROOT}/singularity"
+export MITOSCOPE_TOOLS="${MITOSCOPE_ROOT}/tools"
 export KMCTOOLSCMD="${MITOSCOPE_SINGULARITY}/kmc_3.2.1.sif kmc_tools"
 export FLYECMD="${MITOSCOPE_SINGULARITY}/flye_2.9.1.sif flye"
 export MINIMAP2CMD="${MITOSCOPE_SINGULARITY}/minimap2_2.24.sif minimap2"
@@ -78,6 +79,9 @@ export SORTBEDCMD="${MITOSCOPE_SINGULARITY}/bedtools_2.31.0.sif sortBed"
 export BG2BWCMD="${MITOSCOPE_SINGULARITY}/ucsc-bedgraphtobigwig_445.sif bedGraphToBigWig"
 export SNIFFLESCMD="${MITOSCOPE_SINGULARITY}/sniffles_2.3.3.sif sniffles"
 export BCFTOOLSCMD="${MITOSCOPE_SINGULARITY}/bcftools_1.19.sif bcftools"
+export MUTSERVECMD="${MITOSCOPE_TOOLS}/mutserve_2.0.1/mutserve"
+export HAPLOGREPCMD="${MITOSCOPE_TOOLS}/haplogrep_3.2.2/haplogrep3"
+
 
 export FASTQDIR="$(dirname "$(readlink -f "${FASTQ}")")"
 export RESULTDIR=${FASTQDIR}/mitoscope
@@ -96,6 +100,8 @@ export PIGZTHREADS=${THREADS}
 export MINIMAP2THREADS=${THREADS}
 export SAMTOOLSTHREADS=${THREADS}
 export FLYETHREADS=${THREADS}
+export MUTSERVETHREADS=${THREADS}
+
 export FLYEMINOVERLAP=2500
 
 # select long-reads which are likely from MT
@@ -166,6 +172,26 @@ python ${MITOSCOPE_ROOT}/filter_foldbacks.py \
 
 ${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.bam | pigz -p ${PIGZTHREADS} > ${RESULTDIR}/${FASTQPREFIX}.MT.noFB.fastq.gz
 echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
+#
+
+# call SNVs using mutserve 
+echo '==' $(date) '==' Mutserve SNV calling STARTED
+${MUTSERVECMD} call ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.bam \
+--output ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.mutserve.vcf.gz \
+--reference ${MITOSCOPE_TOOLS}/mutserve_2.0.1/rCRS.fasta \
+--threads ${MUTSERVETHREADS} 
+echo '==' $(date) '==' Mutserve SNV calling COMPLETED
+#
+
+# haplogroup classification using haplogrep3
+echo '==' $(date) '==' Haplogroup classification STARTED
+TREE="phylotree-rcrs@17.2"
+${HAPLOGREPCMD} classify \
+--tree ${TREE} \
+--input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.mutserve.vcf.gz \
+--output ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.haplogrep.txt \
+--extend-report --write-qc
+echo '==' $(date) '==' Haplogroup classification COMPLETED
 #
 
 # assemble the selected long-reads
