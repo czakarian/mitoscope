@@ -37,10 +37,15 @@ export CNCOV=${5:-""}
 [ -z "${FASTQ}" ] && { echo "Fastq file is empty" ; exit 1; }
 [ ! -f "${FASTQ}" ] && { echo "${FASTQ} does not exist" ; exit 2 ; }
 
+## set ont/hifi platform variables
 if [ "$TECH" == "ont" ]; then
-    SEQPLATFORM="--nano-hq"
+    FLYEPLATFORM="--nano-hq"
+    MINIMAPPLATFORM="map-ont"
+    MINIMAPINDEX="MT-ont.mmi"
 elif [ "$TECH" == "pb" ]; then
-    SEQPLATFORM="--pacbio-hifi "
+    FLYEPLATFORM="--pacbio-hifi "
+    MINIMAPPLATFORM="map-hifi"
+    MINIMAPINDEX="MT-hifi.mmi"
 else
     echo "Error: Platform not recognized. Use 'ont' for Oxford Nanopore or 'pb' for PacBio."
     exit 1
@@ -79,9 +84,13 @@ export SORTBEDCMD="${MITOSCOPE_SINGULARITY}/bedtools_2.31.0.sif sortBed"
 export BG2BWCMD="${MITOSCOPE_SINGULARITY}/ucsc-bedgraphtobigwig_445.sif bedGraphToBigWig"
 export SNIFFLESCMD="${MITOSCOPE_SINGULARITY}/sniffles_2.3.3.sif sniffles"
 export BCFTOOLSCMD="${MITOSCOPE_SINGULARITY}/bcftools_1.19.sif bcftools"
+export GATKCMD="${MITOSCOPE_SINGULARITY}/gatk_4.5.0.0.sif gatk"
 export MUTSERVECMD="${MITOSCOPE_TOOLS}/mutserve_2.0.1/mutserve"
 export HAPLOGREPCMD="${MITOSCOPE_TOOLS}/haplogrep_3.2.2/haplogrep3"
 
+## temp use R module for annotate.R 
+module load modules modules-init modules-gs
+module load R/4.3.2
 
 export FASTQDIR="$(dirname "$(readlink -f "${FASTQ}")")"
 export RESULTDIR=${FASTQDIR}/mitoscope
@@ -101,6 +110,7 @@ export MINIMAP2THREADS=${THREADS}
 export SAMTOOLSTHREADS=${THREADS}
 export FLYETHREADS=${THREADS}
 export MUTSERVETHREADS=${THREADS}
+export MUTECTTHREADS=${THREADS}
 
 export FLYEMINOVERLAP=2500
 
@@ -127,11 +137,10 @@ wait
 echo '==' $(date) '==' MT all candidate fastq compression ENDED
 #
 
-
 # for foldback filtration + debugging
 echo '==' $(date) '==' MT candidates fastq reference mapping STARTED
-(${MINIMAP2CMD} -ax map-ont -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/MT.mmi" \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
+"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" \
 ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
@@ -174,13 +183,43 @@ ${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noF
 echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
 #
 
+# call indels using Mutect2
+echo '==' $(date) '==' Mutect2 variant calling STARTED
+mkdir -p ${RESULTDIR}/mutect
+
+${GATKCMD} AddOrReplaceReadGroups \
+-I ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.bam \
+-O ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.RG.bam  \
+--RGLB lib1 --RGPL wgs --RGPU unit1 --RGSM ${FASTQPREFIX} --SORT_ORDER coordinate --CREATE_INDEX true 
+
+${GATKCMD} Mutect2 --mitochondria-mode \
+-R ${MITOSCOPE_RESOURCES}/MT.fasta \
+-I ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.RG.bam \
+-O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.noFB.mutect2.raw.vcf.gz \
+--native-pair-hmm-threads ${MUTECTTHREADS}
+
+${GATKCMD} FilterMutectCalls --mitochondria-mode \
+-R ${MITOSCOPE_RESOURCES}/MT.fasta \
+-V ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.noFB.mutect2.raw.vcf.gz \
+-O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.noFB.mutect2.filters.vcf.gz
+
+${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.noFB.mutect2.PASS.vcf.gz \
+${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.noFB.mutect2.filters.vcf.gz
+
+echo '==' $(date) '==' Mutect2 variant calling COMPLETED
+#
+
 # call SNVs using mutserve 
 echo '==' $(date) '==' Mutserve SNV calling STARTED
+mkdir -p ${RESULTDIR}/mutserve
+
 ${MUTSERVECMD} call ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.bam \
---output ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.mutserve.vcf.gz \
+--output ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.noFB.mutserve.vcf.gz \
 --reference ${MITOSCOPE_TOOLS}/mutserve_2.0.1/rCRS.fasta \
 --threads ${MUTSERVETHREADS} 
 echo '==' $(date) '==' Mutserve SNV calling COMPLETED
+## rename txt output from mutserve since it always truncates full name
+mv ${RESULTDIR}/mutserve/${FASTQPREFIX%%.*}.txt ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.noFB.mutserve.txt
 #
 
 # haplogroup classification using haplogrep3
@@ -188,16 +227,26 @@ echo '==' $(date) '==' Haplogroup classification STARTED
 TREE="phylotree-rcrs@17.2"
 ${HAPLOGREPCMD} classify \
 --tree ${TREE} \
---input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.mutserve.vcf.gz \
---output ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.haplogrep.txt \
+--input ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.noFB.mutserve.vcf.gz \
+--output ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.noFB.haplogrep.txt \
 --extend-report --write-qc
 echo '==' $(date) '==' Haplogroup classification COMPLETED
+#
+
+# add MITOMAP annotations to mutserve output 
+## generate static anno file to use
+echo '==' $(date) '==' MITOMAP annotation of mutserve output STARTED
+Rscript ${MITOSCOPE_ROOT}/annotate.R \
+${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.noFB.mutserve.txt \
+${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.noFB.mutserve.annotated.txt \
+${MITOSCOPE_ROOT}/annotations
+echo '==' $(date) '==' MITOMAP annotation of mutserve output COMPLETED
 #
 
 # assemble the selected long-reads
 echo '==' $(date) '==' de Novo MT assembly STARTED
 ${FLYECMD} --threads ${FLYETHREADS} --meta \
-${SEQPLATFORM} ${RESULTDIR}/${FASTQPREFIX}.MT.noFB.fastq.gz \
+${FLYEPLATFORM} ${RESULTDIR}/${FASTQPREFIX}.MT.noFB.fastq.gz \
 --out-dir ${RESULTDIR}/MT_assembly \
 -m ${FLYEMINOVERLAP} &
 wait
@@ -206,7 +255,7 @@ echo '==' $(date) '==' de Novo MT assembly COMPLETED
 
 # map selected long-reads to assembled contig(s)
 echo '==' $(date) '==' MT candidates fastq assembly mapping STARTED
-(${MINIMAP2CMD} -ax map-ont -t ${MINIMAP2THREADS} \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
 "${RESULTDIR}/MT_assembly/assembly.fasta" \
 ${RESULTDIR}/${FASTQPREFIX}.MT.noFB.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
@@ -242,8 +291,8 @@ echo '==' $(date) '==' MT candidates fastq variation against assembly COMPLETED
 
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly reference mapping STARTED
-(${MINIMAP2CMD} -ax map-ont -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/MT.mmi" \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
+"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" \
 ${RESULTDIR}/MT_assembly/assembly.fasta \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
@@ -272,8 +321,8 @@ echo '==' $(date) '==' Assembly variation against reference COMPLETED
 
 # for debugging
 echo '==' $(date) '==' Graph_before reference mapping STARTED
-(${MINIMAP2CMD} -ax map-ont -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/MT.mmi" \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
+"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" \
 ${RESULTDIR}/MT_assembly/20-repeat/graph_before_rr.fasta \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \

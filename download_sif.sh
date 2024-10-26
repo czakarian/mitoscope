@@ -18,6 +18,7 @@ curl -o singularity/bedtools_2.31.0.sif https://depot.galaxyproject.org/singular
 curl -o singularity/ucsc-bedgraphtobigwig_445.sif https://depot.galaxyproject.org/singularity/ucsc-bedgraphtobigwig%3A445--h954228d_0 -C -
 curl -o singularity/bcftools_1.19.sif https://depot.galaxyproject.org/singularity/bcftools%3A1.19--h8b25389_1 -C - 
 curl -o singularity/sniffles_2.3.3.sif https://depot.galaxyproject.org/singularity/sniffles%3A2.3.3--pyhdfd78af_0 -C - 
+curl -o singularity/gatk_4.5.0.0.sif https://depot.galaxyproject.org/singularity/gatk4%3A4.5.0.0--py36hdfd78af_0 -C - 
 echo $(date) - End of download.
 
 echo $(date) - Set up sif execution permission..
