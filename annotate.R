@@ -1,13 +1,14 @@
 ## Annotating mutserve output with MITOMAP
-args = commandArgs(trailingOnly=TRUE)
 
 library(tidyverse)
 
-## read in sample file
+args = commandArgs(trailingOnly=TRUE)
 input_file=args[1]
-output_file=args[2]
-anno_dir=args[3]
 
+input_prefix = file.path(dirname(input_file), gsub("\\.txt$", "", basename(input_file)))
+anno_dir="/net/nwgc/vol1/home/czaka/tools/mitoscope/annotations"
+
+## read in input file
 mutserve_input = read.delim(input_file)
 
 ### can consider saving the combined df so dont have to run this part every time??
@@ -122,20 +123,19 @@ collapsed_df = combined_df %>%
 
 ## merge anno df with input df 
 input_anno = mutserve_input %>% left_join(collapsed_df, by = c("Pos" = "Position", "Ref" = "REF", "Variant" = "ALT"))
-write_delim(input_anno, output_file, delim="\t")
+write_delim(input_anno, paste0(input_prefix, ".annotated.txt"), delim="\t")
 
 
-## save heteroplasmy plot to a file
+heteroplasmy_plot = ggplot(input_anno, mapping = aes(Pos, VariantLevel)) +
+  geom_point(aes(color = Source), size = 3, alpha = 0.6) +
+  theme_bw() + theme(panel.grid = element_blank()) +
+  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  scale_y_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1.0), limits = c(-0.1,1.1)) +
+  scale_x_continuous(limits = c(0, 16569), breaks = (c(0, 5000, 10000, 15000))) +
+  scale_color_manual(values = c("variant_df" = "#00BFC4", "disease_df" = "#F8766D", "disease_df,variant_df" = "#7CAE00")) +
+  ylab("Heteroplasmy") + xlab("Position in mtDNA genome")
 
-# ggplot(input_anno, mapping = aes(Pos, VariantLevel)) +
-#   geom_point(aes(color = Source), size = 3, alpha = 0.6) +
-#   theme_bw() + theme(panel.grid = element_blank()) +
-#   geom_hline(yintercept = 0.1, linetype = "dashed", color = "red") +
-#   scale_y_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1.0), limits = c(-0.1,1.1)) +
-#   scale_x_continuous(limits = c(0, 16569), breaks = (c(0, 5000, 10000, 15000))) +
-#   ylab("Heteroplasmy") + xlab("Position in mtDNA genome")
-
-
+ggsave(paste0(input_prefix, ".heteroplasmy.png"), heteroplasmy_plot, width = 10, height = 6, dpi = 300)
 
 
 

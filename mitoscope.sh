@@ -215,8 +215,8 @@ mkdir -p ${RESULTDIR}/mutserve
 
 ${MUTSERVECMD} call ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.noFB.bam \
 --output ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.noFB.mutserve.vcf.gz \
---reference ${MITOSCOPE_TOOLS}/mutserve_2.0.1/rCRS.fasta \
---threads ${MUTSERVETHREADS} 
+--reference ${MITOSCOPE_RESOURCES}/MT.fasta \
+--threads ${MUTSERVETHREADS} --no-ansi
 echo '==' $(date) '==' Mutserve SNV calling COMPLETED
 ## rename txt output from mutserve since it always truncates full name
 mv ${RESULTDIR}/mutserve/${FASTQPREFIX%%.*}.txt ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.noFB.mutserve.txt
