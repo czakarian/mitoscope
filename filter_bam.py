@@ -35,8 +35,6 @@ def is_NUMT(cigar):
     sc_left = int(result_left[1]) if result_left else 0
     sc_right = int(result_right[1]) if result_right else 0
 
-    print(sc_left, sc_right)
-
     ## if >=1kb softclipping discard as NUMT
     if sc_left > 1000 or sc_right > 1000 or sc_left + sc_right > 1000:
         return True

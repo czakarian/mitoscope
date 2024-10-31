@@ -42,3 +42,11 @@ wget -P tools/haplogrep_${HAPLOGREP_VERSION} https://github.com/genepi/haplogrep
 unzip tools/haplogrep_${HAPLOGREP_VERSION}/haplogrep3-${HAPLOGREP_VERSION}-linux.zip -d tools/haplogrep_${HAPLOGREP_VERSION} && \
  rm tools/haplogrep_${HAPLOGREP_VERSION}/haplogrep3-${HAPLOGREP_VERSION}-linux.zip
 echo $(date) - End of download.
+
+echo $(date) - Installing haplocheck..
+HAPLOCHECK_VERSION=1.3.3
+mkdir -p tools/haplocheck_${HAPLOCHECK_VERSION}
+wget -P tools/haplocheck_${HAPLOCHECK_VERSION} https://github.com/genepi/haplocheck/releases/download/v${HAPLOCHECK_VERSION}/haplocheck.zip
+unzip tools/haplocheck_${HAPLOCHECK_VERSION}/haplocheck.zip -d tools/haplocheck_${HAPLOCHECK_VERSION} && \
+ rm tools/haplocheck_${HAPLOCHECK_VERSION}/haplocheck.zip
+echo $(date) - End of download.

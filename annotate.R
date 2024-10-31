@@ -1,6 +1,7 @@
 ## Annotating mutserve output with MITOMAP
 
 library(tidyverse)
+library(ggrepel)
 
 args = commandArgs(trailingOnly=TRUE)
 input_file=args[1]
@@ -126,16 +127,30 @@ input_anno = mutserve_input %>% left_join(collapsed_df, by = c("Pos" = "Position
 write_delim(input_anno, paste0(input_prefix, ".annotated.txt"), delim="\t")
 
 
-heteroplasmy_plot = ggplot(input_anno, mapping = aes(Pos, VariantLevel)) +
-  geom_point(aes(color = Source), size = 3, alpha = 0.6) +
-  theme_bw() + theme(panel.grid = element_blank()) +
-  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
-  scale_y_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1.0), limits = c(-0.1,1.1)) +
-  scale_x_continuous(limits = c(0, 16569), breaks = (c(0, 5000, 10000, 15000))) +
-  scale_color_manual(values = c("variant_df" = "#00BFC4", "disease_df" = "#F8766D", "disease_df,variant_df" = "#7CAE00")) +
-  ylab("Heteroplasmy") + xlab("Position in mtDNA genome")
+input_anno = input_anno %>%
+  mutate(DiseaseVariantStatus = case_when(
+    Source %in% c("variant_df", "disease_df,variant_df") ~ "Common Variant", 
+    Source == "disease_df" ~ "Disease Variant",
+    is.na(Source) ~ "Unknown Variant")
+  )
 
-ggsave(paste0(input_prefix, ".heteroplasmy.png"), heteroplasmy_plot, width = 10, height = 6, dpi = 300)
+heteroplasmy_plot = ggplot(input_anno, mapping = aes(Pos, VariantLevel)) +
+  geom_point(aes(color = DiseaseVariantStatus), size = 6, alpha = 0.7) +
+  theme_bw() + theme(panel.grid = element_blank(),
+    axis.title = element_text(size=24),
+    axis.text = element_text(size=20),
+    legend.text = element_text(size=18),
+    legend.title = element_blank()) +
+#  geom_hline(yintercept = 0.05, linetype = "dashed", color = "red") +
+  scale_y_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1.0), limits = c(-0.1,1.1)) +
+  scale_x_continuous(limits = c(0, 16569), breaks = (c(0, 4000, 8000, 12000, 16000))) +
+  scale_color_manual(values = c("Common Variant" = "#00BFC4", "Disease Variant" = "#F8766D", "Unknown Variant" = "grey")) +
+  ylab("Variant Level") + xlab("Position in mtDNA genome") + 
+  geom_text_repel(data = subset(input_anno, Source %in% c("disease_df", NA)),
+     aes(label = paste(Ref, Pos, Variant, "\n", VariantLevel*100, "%", sep="")), size = 7, color = "black", nudge_y = 0.08)
+
+
+ggsave(paste0(input_prefix, ".heteroplasmy.png"), heteroplasmy_plot, width = 12, height= 8)
 
 
 
