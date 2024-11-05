@@ -28,11 +28,60 @@
 
 set -eu -o pipefail
 
-export FASTQ=${1}
-export TECH=${2}
-export THREADS=${3:-"4"}
-export MINREADSUPPORT=${4:-"2"}
-export CNCOV=${5:-""}
+usage() {
+    echo "Usage: mitoscope.sh -f <input_fastq> -p <ont|pb> [-t <threads>] [-m <minreadsupport>] [-c <cncov>]"
+    echo
+    echo "Required arguments:"
+    echo "  -f <input_fastq>      Input FASTQ file."
+    echo "  -p <ont|pb>           Technology type: 'ont' for Oxford Nanopore or 'pb' for PacBio."
+    echo
+    echo "Optional arguments:"
+    echo "  -t <threads>          Number of threads to use (default: 4)."
+    echo "  -m <minreadsupport>   Minimum read support for SV calling (default: 2)."
+    echo "  -c <cncov>            Coverage? (default: auto)??."
+}
+
+# Check if no arguments were passed
+if [ "$#" -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+# Default values
+export THREADS=4  
+export MINREADSUPPORT=2
+export CNCOV=""
+
+while getopts "f:p:t:m:c:h" FLAG; do
+    case ${FLAG} in
+        f) FASTQ=${OPTARG};;
+        p) TECH=${OPTARG};;
+        t) THREADS=${OPTARG};;
+        m) MINREADSUPPORT=${OPTARG};;
+        c) CNCOV=${OPTARG};;
+        h) 
+            usage
+            exit 0
+            ;;
+        *) 
+            echo "Invalid or missing arguments."
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Check if required arguments are set
+if [ -z "$FASTQ" ] || [ -z "$TECH" ]; then
+    echo "Error: -f and -p options are required."
+    exit 1
+fi
+
+if [[ "$TECH" != "ont" && "$TECH" != "pb" ]]; then
+    echo "Invalid option for -p: $TECH. Must be 'ont' or 'pb'."
+    exit 1
+fi
+
 [ -z "${FASTQ}" ] && { echo "Fastq file is empty" ; exit 1; }
 [ ! -f "${FASTQ}" ] && { echo "${FASTQ} does not exist" ; exit 2 ; }
 
@@ -45,11 +94,10 @@ elif [ "$TECH" == "pb" ]; then
     export FLYEPLATFORM="--pacbio-hifi "
     export MINIMAPPLATFORM="map-hifi"
     export MINIMAPINDEX="MT-hifi.mmi"
-else
-    echo "Error: Platform not recognized. Use 'ont' for Oxford Nanopore or 'pb' for PacBio."
-    exit 1
 fi
 
+echo "# FASTQ = ${FASTQ}"
+echo "# Threads = ${THREADS}"
 echo "# Minimum read support = ${MINREADSUPPORT}"
 covCN=12
 if [[ -n "${CNCOV}" ]]; then
@@ -66,6 +114,7 @@ if [[ -n "${CNCOV}" ]]; then
 else
     echo "# Assumed 25x coverage, using covCN ${covCN}"
 fi
+
 
 # export MITOSCOPE_ROOT="$(dirname "$(readlink -f "${BASH_SOURCE}")")"
 # TODO: set path to your copy of mitoscope
@@ -147,8 +196,7 @@ ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam 
 export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam; \
 export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
-${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} \
-| ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
+${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
 echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
 ${BG2BWCMD} ${DSNAME}.bg "${MITOSCOPE_RESOURCES}/MT.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
 echo '==' $(date) '==' Done. ) &
@@ -242,8 +290,7 @@ echo '==' $(date) '==' Haplocheck contamination check COMPLETED
 echo '==' $(date) '==' MITOMAP annotation of mutserve output STARTED
 Rscript ${MITOSCOPE_ROOT}/annotate.R \
 ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.txt \
-${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.annotated.txt \
-${MITOSCOPE_ROOT}/annotations
+${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv
 echo '==' $(date) '==' MITOMAP annotation of mutserve output COMPLETED
 #
 
@@ -267,8 +314,7 @@ ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembl
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam; \
 export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
-${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} \
-| ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
+${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
 echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
 ${SAMTOOLSCMD} faidx "${RESULTDIR}/MT_assembly/assembly.fasta" ; \
 ${BG2BWCMD} ${DSNAME}.bg "${RESULTDIR}/MT_assembly/assembly.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
@@ -303,8 +349,7 @@ ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembl
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam; \
 export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
-${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} \
-| ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
+${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
 echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
 ${BG2BWCMD} ${DSNAME}.bg "${MITOSCOPE_RESOURCES}/MT.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
 echo '==' $(date) '==' Done. ) &
@@ -333,8 +378,7 @@ ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_be
 export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam; \
 export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
-${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} \
-| ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
+${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
 echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
 ${BG2BWCMD} ${DSNAME}.bg "${MITOSCOPE_RESOURCES}/MT.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
 echo '==' $(date) '==' Done. ) &
