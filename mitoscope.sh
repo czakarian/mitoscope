@@ -4,7 +4,6 @@
 # Adapted from ecLegoV3 for human mitochondria
 #
 # PENDING:
-# C1. SNV/SNP calling support
 # C2. <INV>, <DEL>, <INS> required different minimum read support
 # C3. address <DUP> at sub-genomic level
 # C4. visualization:
@@ -39,13 +38,13 @@ export CNCOV=${5:-""}
 
 ## set ont/hifi platform variables
 if [ "$TECH" == "ont" ]; then
-    FLYEPLATFORM="--nano-hq"
-    MINIMAPPLATFORM="map-ont"
-    MINIMAPINDEX="MT-ont.mmi"
+    export FLYEPLATFORM="--nano-hq"
+    export MINIMAPPLATFORM="map-ont"
+    export MINIMAPINDEX="MT-ont.mmi"
 elif [ "$TECH" == "pb" ]; then
-    FLYEPLATFORM="--pacbio-hifi "
-    MINIMAPPLATFORM="map-hifi"
-    MINIMAPINDEX="MT-hifi.mmi"
+    export FLYEPLATFORM="--pacbio-hifi "
+    export MINIMAPPLATFORM="map-hifi"
+    export MINIMAPINDEX="MT-hifi.mmi"
 else
     echo "Error: Platform not recognized. Use 'ont' for Oxford Nanopore or 'pb' for PacBio."
     exit 1

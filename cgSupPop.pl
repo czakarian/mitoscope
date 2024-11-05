@@ -428,20 +428,21 @@ sub writeMapSVCall {
     print OUTFILE "\n";
     print OUTFILE "# ",$fastaCollection, "\n";
     printf OUTFILE "export FASTA=%s\n", $fastaCollection;
-    print OUTFILE 'export ECLEGO_ROOT=/net/nwgc/vol1/techdev/GBMTW', "\n";
-    print OUTFILE 'export REFGENOME=${ECLEGO_ROOT}/pipeline/genomes/t2tv2.fasta', "\n";
-    print OUTFILE 'export SINGULARITY_BINDPATH=/net/nwgc/vol1/techdev/GBMTW', "\n";
-    print OUTFILE 'export MINIMAP2CMD="${ECLEGO_ROOT}/pipeline/minimap2_2.24.sif minimap2"', "\n";
+    printf OUTFILE "export ECLEGO_ROOT=%s\n", $G_LOCAL_DIR;
+    print OUTFILE 'export REFGENOME=${ECLEGO_ROOT}/resources/MT.fasta', "\n";
+    print OUTFILE 'export REFINDEX=${ECLEGO_ROOT}/resources/${MINIMAPINDEX}', "\n";
+    print OUTFILE 'export SINGULARITY_BINDPATH=${ECLEGO_ROOT}', "\n";
+    print OUTFILE 'export MINIMAP2CMD="${ECLEGO_ROOT}/singularity/minimap2_2.24.sif minimap2"', "\n";
     print OUTFILE 'export MINIMAP2THREADS=4', "\n";
-    print OUTFILE 'export SAMTOOLSCMD="${ECLEGO_ROOT}/pipeline/samtools_v1.15.1.sif samtools"', "\n";
+    print OUTFILE 'export SAMTOOLSCMD="${ECLEGO_ROOT}/singularity/samtools_v1.15.1.sif samtools"', "\n";
     print OUTFILE 'export SAMTOOLSTHREADS=4', "\n";
-    print OUTFILE 'export SNIFFLESCMD="${ECLEGO_ROOT}/pipeline/sniffles_v2.3.3.sif sniffles"', "\n";
+    print OUTFILE 'export SNIFFLESCMD="${ECLEGO_ROOT}/singularity/sniffles_2.3.3.sif sniffles"', "\n";
     print OUTFILE 'export SNIFFLESTHREADS=4', "\n";
     print OUTFILE "\n";
 
     print OUTFILE "# mapping\n";
-    print OUTFILE 'echo $(date) Mapping ',$fastaCollection, ' against T2Tv2..', "\n";
-    print OUTFILE '${MINIMAP2CMD} -ax map-ont -t ${MINIMAP2THREADS} -L "${REFGENOME/%.fasta/.mmi}" ${FASTA} \\', "\n";
+    print OUTFILE 'echo $(date) Mapping ',$fastaCollection, ' against MT reference..', "\n";
+    print OUTFILE '${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} -L ${REFINDEX} ${FASTA} \\', "\n";
     print OUTFILE '| ${SAMTOOLSCMD} sort -O BAM -@4 -o ${FASTA/%.fa/.bam} ; \\', "\n";
     print OUTFILE '${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${FASTA/%.fa/.bam}', "\n";
     print OUTFILE "\n";
@@ -453,7 +454,7 @@ sub writeMapSVCall {
     print OUTFILE "\n";
 
     print OUTFILE "# sv calling for various lengths\n";
-    print OUTFILE 'for i in 20 10 5 1 ; do \\', "\n";
+    print OUTFILE 'for i in 20 10 5 2 ; do \\', "\n";
     print OUTFILE 'echo $(date) SV Calling pass minsupport=1 minsvlen=${i}.. ; \\', "\n";
     print OUTFILE '${SNIFFLESCMD} --allow-overwrite --minsupport 1 --minsvlen ${i} --reference ${REFGENOME} --input ${BAMFILE} --vcf ${BAMFILE}.pass.minlen${i}.vcf ; \\', "\n";
     print OUTFILE 'done', "\n";     
