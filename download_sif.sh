@@ -50,3 +50,9 @@ wget -P tools/haplocheck_${HAPLOCHECK_VERSION} https://github.com/genepi/haploch
 unzip tools/haplocheck_${HAPLOCHECK_VERSION}/haplocheck.zip -d tools/haplocheck_${HAPLOCHECK_VERSION} && \
  rm tools/haplocheck_${HAPLOCHECK_VERSION}/haplocheck.zip
 echo $(date) - End of download.
+
+echo $(date) - Installing Picard..
+PICARD_VERSION=3.3.0
+mkdir -p tools/picard_${PICARD_VERSION}
+wget -P tools/picard_${PICARD_VERSION} https://github.com/broadinstitute/picard/releases/download/3.3.0/picard.jar
+echo $(date) - End of download.

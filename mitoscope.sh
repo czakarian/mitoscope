@@ -10,14 +10,11 @@
 #     circos or CGView (https://js.cgview.ca/examples/index.html)
 # C5. population based analysis
 # C6. visualization at population-level (inter-samples)
-# C7. support .bam as input or propagate MM,ML-tags - for modications
 # C8. modifications analysis (on non-PCR library construction)
 #
 # PENDING (technical):
 # T1. Convert to nextflow for parallel execution of non-dependent 
 #     subjobs
-# T2. Add command-line options with getopts
-# T3. add bam to fastq conversion into script?
 #
 # NOTE:
 # N1. .gv visualization with https://dreampuf.github.io/GraphvizOnline/
@@ -28,17 +25,22 @@
 
 set -eu -o pipefail
 
+## temp use R module for annotate.R 
+module load modules modules-init modules-gs
+module load R/4.3.2
+
 usage() {
     echo "Usage: mitoscope.sh -f <input_fastq> -p <ont|pb> [-t <threads>] [-m <minreadsupport>] [-c <cncov>]"
     echo
     echo "Required arguments:"
-    echo "  -f <input_fastq>      Input FASTQ file."
-    echo "  -p <ont|pb>           Technology type: 'ont' for Oxford Nanopore or 'pb' for PacBio."
+    echo "  -i <input>            Input FASTQ or BAM file."
+    echo "  -o <outputdir>        Output directory."
+    echo "  -p <ont|pb>           Platform: 'ont' for Oxford Nanopore or 'pb' for PacBio."
     echo
     echo "Optional arguments:"
     echo "  -t <threads>          Number of threads to use (default: 4)."
     echo "  -m <minreadsupport>   Minimum read support for SV calling (default: 2)."
-    echo "  -c <cncov>            Coverage? (default: auto)??."
+    echo "  -c <cncov>            CN Coverage? (default: ??)."
 }
 
 # Check if no arguments were passed
@@ -52,10 +54,11 @@ export THREADS=4
 export MINREADSUPPORT=2
 export CNCOV=""
 
-while getopts "f:p:t:m:c:h" FLAG; do
+while getopts "i:o:p:t:m:c:h" FLAG; do
     case ${FLAG} in
-        f) FASTQ=${OPTARG};;
-        p) TECH=${OPTARG};;
+        i) INPUTFILE=${OPTARG};;
+        o) OUTDIR=${OPTARG};;
+        p) PLATFORM=${OPTARG};;
         t) THREADS=${OPTARG};;
         m) MINREADSUPPORT=${OPTARG};;
         c) CNCOV=${OPTARG};;
@@ -72,31 +75,39 @@ while getopts "f:p:t:m:c:h" FLAG; do
 done
 
 # Check if required arguments are set
-if [ -z "$FASTQ" ] || [ -z "$TECH" ]; then
-    echo "Error: -f and -p options are required."
+if [[ -z "${INPUTFILE}"  ||  -z "${OUTDIR}"  ||  -z "${PLATFORM}" ]]; then
+    echo "Error: -i <input>, -o <outputdir>, and -p <ont/pb> options are all required."
     exit 1
 fi
 
-if [[ "$TECH" != "ont" && "$TECH" != "pb" ]]; then
-    echo "Invalid option for -p: $TECH. Must be 'ont' or 'pb'."
+if [[ "${PLATFORM}" != "ont"  &&  "${PLATFORM}" != "pb" ]]; then
+    echo "Invalid option for -p: ${PLATFORM}. Must be 'ont' or 'pb'."
     exit 1
 fi
 
-[ -z "${FASTQ}" ] && { echo "Fastq file is empty" ; exit 1; }
-[ ! -f "${FASTQ}" ] && { echo "${FASTQ} does not exist" ; exit 2 ; }
+if [[ ! -f "${INPUTFILE}" ]]; then
+    echo "${INPUTFILE} does not exist"
+    exit 2
+fi
+
+if [[ "${INPUTFILE}" != *.bam  && "${INPUTFILE}" != *.fastq  && "${INPUTFILE}" != *.fastq.gz ]]; then
+    echo "File ${INPUTFILE} does not have .bam or .fastq/.fastq.gz extension."
+    exit 2
+fi
 
 ## set ont/hifi platform variables
-if [ "$TECH" == "ont" ]; then
+if [ ${PLATFORM} == "ont" ]; then
     export FLYEPLATFORM="--nano-hq"
     export MINIMAPPLATFORM="map-ont"
     export MINIMAPINDEX="MT-ont.mmi"
-elif [ "$TECH" == "pb" ]; then
+elif [ ${PLATFORM} == "pb" ]; then
     export FLYEPLATFORM="--pacbio-hifi "
     export MINIMAPPLATFORM="map-hifi"
     export MINIMAPINDEX="MT-hifi.mmi"
 fi
 
-echo "# FASTQ = ${FASTQ}"
+echo "# Input file = ${INPUTFILE}"
+echo "# Output directory = ${OUTDIR}"
 echo "# Threads = ${THREADS}"
 echo "# Minimum read support = ${MINREADSUPPORT}"
 covCN=12
@@ -116,10 +127,7 @@ else
 fi
 
 
-# export MITOSCOPE_ROOT="$(dirname "$(readlink -f "${BASH_SOURCE}")")"
-# TODO: set path to your copy of mitoscope
-export MITOSCOPE_ROOT="/net/nwgc/vol1/home/czaka/tools/mitoscope"
-
+export MITOSCOPE_ROOT="$(dirname "$(readlink -f "${BASH_SOURCE}")")"
 export MITOSCOPE_RESOURCES="${MITOSCOPE_ROOT}/resources"
 export MITOSCOPE_SINGULARITY="${MITOSCOPE_ROOT}/singularity"
 export MITOSCOPE_TOOLS="${MITOSCOPE_ROOT}/tools"
@@ -136,22 +144,24 @@ export GATKCMD="${MITOSCOPE_SINGULARITY}/gatk_4.5.0.0.sif gatk"
 export MUTSERVECMD="${MITOSCOPE_TOOLS}/mutserve_2.0.1/mutserve"
 export HAPLOGREPCMD="${MITOSCOPE_TOOLS}/haplogrep_3.2.2/haplogrep3"
 export HAPLOCHECKCMD="${MITOSCOPE_TOOLS}/haplocheck_1.3.3/haplocheck"
+export PICARDCMD="${MITOSCOPE_TOOLS}/picard_3.3.0/picard.jar"
 
-## temp use R module for annotate.R 
-module load modules modules-init modules-gs
-module load R/4.3.2
-
-export FASTQDIR="$(dirname "$(readlink -f "${FASTQ}")")"
-export RESULTDIR=${FASTQDIR}/mitoscope
+export INPUTDIR="$(dirname "$(readlink -f "${INPUTFILE}")")"
+OUTDIR="${OUTDIR%/}"
+[ ! -d "${OUTDIR}" ] && mkdir "${OUTDIR}"
+export RESULTDIR=${OUTDIR}/mitoscope
 [ ! -d "${RESULTDIR}" ] && mkdir "${RESULTDIR}"
-export DEBUGDIR=${FASTQDIR}/mitoscope/debug
+export DEBUGDIR=${OUTDIR}/mitoscope/debug
 [ ! -d "${DEBUGDIR}" ] && mkdir "${DEBUGDIR}"
 
-export FASTQPREFIX="$(basename "$(readlink -f "${FASTQ}")")"
+export FASTQPREFIX="$(basename "$(readlink -f "${INPUTFILE}")")"
 export FASTQPREFIX="${FASTQPREFIX%.gz}"
 export FASTQPREFIX="${FASTQPREFIX%.*}"
 
-export SINGULARITY_BINDPATH="${MITOSCOPE_ROOT},${FASTQDIR}"
+export SINGULARITY_BINDPATH="${MITOSCOPE_ROOT},${INPUTDIR}"
+if [[ "$(readlink -f "${OUTDIR}")" != "$(readlink -f "${INPUTDIR}")" ]]; then
+    export SINGULARITY_BINDPATH="${MITOSCOPE_ROOT},${INPUTDIR},${OUTDIR}"
+fi
 
 export KMCTOOLSTHREADS=${THREADS}
 export PIGZTHREADS=${THREADS}
@@ -163,10 +173,21 @@ export MUTECTTHREADS=${THREADS}
 
 export FLYEMINOVERLAP=2500
 
+# if input file is a bam convert to fastq
+if [[ "${INPUTFILE}" == *.fastq || "${INPUTFILE}" == *.fastq.gz ]]; then
+    echo '==' $(date) '==' Fastq input provided, bam to fastq conversion SKIPPED
+    export FASTQ=${INPUTFILE}
+elif [[ "${INPUTFILE}" == *.bam ]]; then
+    echo '==' $(date) '==' Bam to fastq conversion STARTED
+    export FASTQ=${OUTDIR}/${FASTQPREFIX}.fastq.gz
+    ${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} -0 ${FASTQ} ${INPUTFILE}
+    echo '==' $(date) '==' Bam to fastq conversion COMPLETE
+fi
+#
+
 # select long-reads which are likely from MT
 echo '==' $(date) '==' MT candidate fastq generation STARTED
-time (${KMCTOOLSCMD} -t${KMCTOOLSTHREADS} filter \
-${MITOSCOPE_RESOURCES}/MT.k29 -ci1 ${FASTQ} \
+time (${KMCTOOLSCMD} -t${KMCTOOLSTHREADS} filter ${MITOSCOPE_RESOURCES}/MT.k29 -ci1 ${FASTQ} \
 -fq -ci2500 ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq) &
 wait
 echo '==' $(date) '==' MT candidate fastq generation ENDED
@@ -189,8 +210,7 @@ echo '==' $(date) '==' MT all candidate fastq compression ENDED
 # align MT reads to ref for NUMT and foldback filtration + debugging
 echo '==' $(date) '==' MT candidates fastq reference mapping STARTED
 (${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" \
-${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
+"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
 export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam; \
@@ -220,12 +240,25 @@ ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf \
 echo '==' $(date) '==' MT candidates fastq variation against reference COMPLETED
 #       
 
-# remove foldback reads before assembly
+# remove foldback reads and NUMTs before assembly
 echo '==' $(date) '==' Removal of foldback MT candidates STARTED
 python ${MITOSCOPE_ROOT}/filter_bam.py -i ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam 
-
 ${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | pigz -p ${PIGZTHREADS} > ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz
 echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
+#
+
+# pull and append methylation information
+if [[ "${INPUTFILE}" == *.bam ]]; then
+    echo '==' $(date) '==' Append methylation tags STARTED
+    ${SAMTOOLSCMD} view ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | cut -f 1 | uniq > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.readnames.txt
+    java -jar ${PICARDCMD} FilterSamReads -I ${INPUTFILE} -O ${DEBUGDIR}/${FASTQPREFIX}.MitoMethSubset.bam \
+    -READ_LIST_FILE ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.readnames.txt -FILTER includeReadList 
+    python ${MITOSCOPE_ROOT}/append_meth_tags.py --inputbam ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam --methbam ${DEBUGDIR}/${FASTQPREFIX}.MitoMethSubset.bam
+    ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.withMeth.bam
+    echo '==' $(date) '==' Append methylation tags COMPLETED
+else
+    echo '==' $(date) '==' For FASTQ input, append methylation tags SKIPPED
+fi
 #
 
 # call indels using Mutect2
@@ -307,8 +340,7 @@ echo '==' $(date) '==' de Novo MT assembly COMPLETED
 # map selected long-reads to assembled contig(s)
 echo '==' $(date) '==' MT candidates fastq assembly mapping STARTED
 (${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
-"${RESULTDIR}/MT_assembly/assembly.fasta" \
-${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
+"${RESULTDIR}/MT_assembly/assembly.fasta" ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam; \
@@ -342,8 +374,7 @@ echo '==' $(date) '==' MT candidates fastq variation against assembly COMPLETED
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly reference mapping STARTED
 (${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" \
-${RESULTDIR}/MT_assembly/assembly.fasta \
+"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" ${RESULTDIR}/MT_assembly/assembly.fasta \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam; \
@@ -371,8 +402,7 @@ echo '==' $(date) '==' Assembly variation against reference COMPLETED
 # for debugging
 echo '==' $(date) '==' Graph_before reference mapping STARTED
 (${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" \
-${RESULTDIR}/MT_assembly/20-repeat/graph_before_rr.fasta \
+"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" ${RESULTDIR}/MT_assembly/20-repeat/graph_before_rr.fasta \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
 export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam; \
@@ -390,7 +420,7 @@ echo '==' $(date) '==' Graph_before fastq reference mapping COMPLETED
 # generate subpopulation
 # TODO: determine at what threshold we claim a new subpopulation
 echo '==' $(date) '==' Subpopulations generation STARTED
-export SIEVEDGRAPHDIR=${FASTQDIR}/mitoscope/MT_assembly/sieved_graph
+export SIEVEDGRAPHDIR=${RESULTDIR}/MT_assembly/sieved_graph
 [ ! -d "${SIEVEDGRAPHDIR}" ] && mkdir -p "${SIEVEDGRAPHDIR}"
 pushd "${SIEVEDGRAPHDIR}"
 # 
@@ -444,15 +474,3 @@ else
 fi
 echo '==' $(date) '==' Subpopulations generation COMPLETED
 #
-
-
-#
-# TODO: <INV>, <DEL>, <INS> required different minimum read support
-# TODO: SNV calling
-#
-# TODO: visualization : circos or CGView (https://js.cgview.ca/examples/index.html)
-# NOTE: .gv visualization with https://dreampuf.github.io/GraphvizOnline/
-#
-# TODO: population based analysis and visualization?
-#
-
