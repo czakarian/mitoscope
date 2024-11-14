@@ -187,30 +187,28 @@ fi
 
 # select long-reads which are likely from MT
 echo '==' $(date) '==' MT candidate fastq generation STARTED
-time (${KMCTOOLSCMD} -t${KMCTOOLSTHREADS} filter ${MITOSCOPE_RESOURCES}/MT.k29 -ci1 ${FASTQ} \
--fq -ci2500 ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq) &
-wait
+${KMCTOOLSCMD} -t${KMCTOOLSTHREADS} filter ${MITOSCOPE_RESOURCES}/MT.k29 -ci1 ${FASTQ} -fq -ci2500 ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq
 echo '==' $(date) '==' MT candidate fastq generation ENDED
+
+### do oversize removal in filter_bam script (more concise + look at alignment length instead of read length // wont remove reads with insertions)
 echo '==' $(date) '==' MT oversized candidate removal STARTED
 (cat ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq \
 | perl -e 'while ($L1=<STDIN>) { $L2=<STDIN>; $L3=<STDIN>; $L4=<STDIN>;
   chomp($L2); if (length($L2)<=16569) {
     print $L1; print $L2,"\n"; print $L3; print $L4;
   }
-}' \
-| pigz -p ${PIGZTHREADS} - > ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz) &
+}' | pigz -p ${PIGZTHREADS} - > ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz) &
 wait
 echo '==' $(date) '==' MT oversized candidate removal ENDED
+
 echo '==' $(date) '==' MT all candidate fastq compression STARTED
-time (pigz -p ${PIGZTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq) &
-wait
+pigz -p ${PIGZTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq
 echo '==' $(date) '==' MT all candidate fastq compression ENDED
 #
 
 # align MT reads to ref for NUMT and foldback filtration + debugging
 echo '==' $(date) '==' MT candidates fastq reference mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
 export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam; \
@@ -218,7 +216,7 @@ export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
 ${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
 echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
-${BG2BWCMD} ${DSNAME}.bg "${MITOSCOPE_RESOURCES}/MT.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
+${BG2BWCMD} ${DSNAME}.bg ${MITOSCOPE_RESOURCES}/MT.fasta.fai ${DSNAME}.bw && rm ${DSNAME}.bg ; \
 echo '==' $(date) '==' Done. ) &
 wait
 echo '==' $(date) '==' MT candidates fastq reference mapping COMPLETED
@@ -339,8 +337,7 @@ echo '==' $(date) '==' de Novo MT assembly COMPLETED
 
 # map selected long-reads to assembled contig(s)
 echo '==' $(date) '==' MT candidates fastq assembly mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
-"${RESULTDIR}/MT_assembly/assembly.fasta" ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} ${RESULTDIR}/MT_assembly/assembly.fasta ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam; \
@@ -348,8 +345,8 @@ export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
 ${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
 echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
-${SAMTOOLSCMD} faidx "${RESULTDIR}/MT_assembly/assembly.fasta" ; \
-${BG2BWCMD} ${DSNAME}.bg "${RESULTDIR}/MT_assembly/assembly.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
+${SAMTOOLSCMD} faidx ${RESULTDIR}/MT_assembly/assembly.fasta ; \
+${BG2BWCMD} ${DSNAME}.bg ${RESULTDIR}/MT_assembly/assembly.fasta.fai ${DSNAME}.bw && rm ${DSNAME}.bg ; \
 echo '==' $(date) '==' Done. ) &
 wait
 echo '==' $(date) '==' MT candidates fastq assembly mapping COMPLETED
@@ -373,8 +370,7 @@ echo '==' $(date) '==' MT candidates fastq variation against assembly COMPLETED
 
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly reference mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" ${RESULTDIR}/MT_assembly/assembly.fasta \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/MT_assembly/assembly.fasta \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam; \
@@ -382,7 +378,7 @@ export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
 ${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
 echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
-${BG2BWCMD} ${DSNAME}.bg "${MITOSCOPE_RESOURCES}/MT.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
+${BG2BWCMD} ${DSNAME}.bg ${MITOSCOPE_RESOURCES}/MT.fasta.fai ${DSNAME}.bw && rm ${DSNAME}.bg ; \
 echo '==' $(date) '==' Done. ) &
 wait
 echo '==' $(date) '==' Assembly reference mapping COMPLETED
@@ -401,8 +397,7 @@ echo '==' $(date) '==' Assembly variation against reference COMPLETED
 
 # for debugging
 echo '==' $(date) '==' Graph_before reference mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} \
-"${MITOSCOPE_RESOURCES}/${MINIMAPINDEX}" ${RESULTDIR}/MT_assembly/20-repeat/graph_before_rr.fasta \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/MT_assembly/20-repeat/graph_before_rr.fasta \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
 export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam; \
@@ -410,7 +405,7 @@ export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
 ${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
 echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
-${BG2BWCMD} ${DSNAME}.bg "${MITOSCOPE_RESOURCES}/MT.fasta.fai" ${DSNAME}.bw && rm ${DSNAME}.bg ; \
+${BG2BWCMD} ${DSNAME}.bg ${MITOSCOPE_RESOURCES}/MT.fasta.fai ${DSNAME}.bw && rm ${DSNAME}.bg ; \
 echo '==' $(date) '==' Done. ) &
 wait
 echo '==' $(date) '==' Graph_before fastq reference mapping COMPLETED
