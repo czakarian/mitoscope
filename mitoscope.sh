@@ -146,20 +146,21 @@ export HAPLOGREPCMD="${MITOSCOPE_TOOLS}/haplogrep_3.2.2/haplogrep3"
 export HAPLOCHECKCMD="${MITOSCOPE_TOOLS}/haplocheck_1.3.3/haplocheck"
 export PICARDCMD="${MITOSCOPE_TOOLS}/picard_3.3.0/picard.jar"
 
-export INPUTDIR="$(dirname "$(readlink -f "${INPUTFILE}")")"
+INPUTFILE=$(readlink -f "${INPUTFILE}") ## resolve the symbolic link to actual file path
+export INPUTDIR=$(dirname "${INPUTFILE}")
 OUTDIR="${OUTDIR%/}"
 [ ! -d "${OUTDIR}" ] && mkdir "${OUTDIR}"
 export RESULTDIR=${OUTDIR}/mitoscope
-[ ! -d "${RESULTDIR}" ] && mkdir "${RESULTDIR}"
 export DEBUGDIR=${OUTDIR}/mitoscope/debug
-[ ! -d "${DEBUGDIR}" ] && mkdir "${DEBUGDIR}"
+mkdir "${RESULTDIR}"
+mkdir "${DEBUGDIR}"
 
-export FASTQPREFIX="$(basename "$(readlink -f "${INPUTFILE}")")"
+export FASTQPREFIX="$(basename "${INPUTFILE}")"
 export FASTQPREFIX="${FASTQPREFIX%.gz}"
 export FASTQPREFIX="${FASTQPREFIX%.*}"
 
 export SINGULARITY_BINDPATH="${MITOSCOPE_ROOT},${INPUTDIR}"
-if [[ "$(readlink -f "${OUTDIR}")" != "$(readlink -f "${INPUTDIR}")" ]]; then
+if [[ "${OUTDIR}" != "${INPUTDIR}" ]]; then
     export SINGULARITY_BINDPATH="${MITOSCOPE_ROOT},${INPUTDIR},${OUTDIR}"
 fi
 
@@ -180,6 +181,7 @@ if [[ "${INPUTFILE}" == *.fastq || "${INPUTFILE}" == *.fastq.gz ]]; then
 elif [[ "${INPUTFILE}" == *.bam ]]; then
     echo '==' $(date) '==' Bam to fastq conversion STARTED
     export FASTQ=${OUTDIR}/${FASTQPREFIX}.fastq.gz
+    ## if want to do MM,ML tag can pipe samtools fastq output to | tr | pigz?
     ${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} -0 ${FASTQ} ${INPUTFILE}
     echo '==' $(date) '==' Bam to fastq conversion COMPLETE
 fi
@@ -187,28 +189,14 @@ fi
 
 # select long-reads which are likely from MT
 echo '==' $(date) '==' MT candidate fastq generation STARTED
-${KMCTOOLSCMD} -t${KMCTOOLSTHREADS} filter ${MITOSCOPE_RESOURCES}/MT.k29 -ci1 ${FASTQ} -fq -ci2500 ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq
+${KMCTOOLSCMD} -t${KMCTOOLSTHREADS} filter ${MITOSCOPE_RESOURCES}/MT.k29 -ci1 ${FASTQ} -fq -ci2500 ${RESULTDIR}/${FASTQPREFIX}.MT.fastq 
+pigz -p ${PIGZTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq
 echo '==' $(date) '==' MT candidate fastq generation ENDED
-
-### do oversize removal in filter_bam script (more concise + look at alignment length instead of read length // wont remove reads with insertions)
-echo '==' $(date) '==' MT oversized candidate removal STARTED
-(cat ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq \
-| perl -e 'while ($L1=<STDIN>) { $L2=<STDIN>; $L3=<STDIN>; $L4=<STDIN>;
-  chomp($L2); if (length($L2)<=16569) {
-    print $L1; print $L2,"\n"; print $L3; print $L4;
-  }
-}' | pigz -p ${PIGZTHREADS} - > ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz) &
-wait
-echo '==' $(date) '==' MT oversized candidate removal ENDED
-
-echo '==' $(date) '==' MT all candidate fastq compression STARTED
-pigz -p ${PIGZTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.all.fastq
-echo '==' $(date) '==' MT all candidate fastq compression ENDED
 #
 
-# align MT reads to ref for NUMT and foldback filtration + debugging
+# align MT reads to ref for read filtration + debugging
 echo '==' $(date) '==' MT candidates fastq reference mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
 export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam; \
@@ -222,7 +210,7 @@ wait
 echo '==' $(date) '==' MT candidates fastq reference mapping COMPLETED
 #
 
-# for debugging
+# 
 echo '==' $(date) '==' MT candidates fastq variation against reference STARTED
 ${SNIFFLESCMD} \
 --output-rnames \
@@ -238,11 +226,14 @@ ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf \
 echo '==' $(date) '==' MT candidates fastq variation against reference COMPLETED
 #       
 
-# remove foldback reads and NUMTs before assembly
+# remove foldback reads and NUMTs 
 echo '==' $(date) '==' Removal of foldback MT candidates STARTED
 python ${MITOSCOPE_ROOT}/filter_bam.py -i ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam 
-${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | pigz -p ${PIGZTHREADS} > ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz
 echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
+
+echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam STARTED
+${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | pigz -p ${PIGZTHREADS} > ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz
+echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam COMPLETED
 #
 
 # pull and append methylation information
@@ -317,7 +308,7 @@ echo '==' $(date) '==' Haplocheck contamination check COMPLETED
 #
 
 # add MITOMAP annotations to mutserve output 
-## generate static anno file to use
+## modify anno script to handle VCFs and maybe move from R to python/pandas?
 echo '==' $(date) '==' MITOMAP annotation of mutserve output STARTED
 Rscript ${MITOSCOPE_ROOT}/annotate.R \
 ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.txt \
@@ -327,17 +318,15 @@ echo '==' $(date) '==' MITOMAP annotation of mutserve output COMPLETED
 
 # assemble the selected long-reads
 echo '==' $(date) '==' de Novo MT assembly STARTED
-${FLYECMD} --threads ${FLYETHREADS} --meta \
-${FLYEPLATFORM} ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
---out-dir ${RESULTDIR}/MT_assembly \
--m ${FLYEMINOVERLAP} &
+${FLYECMD} --threads ${FLYETHREADS} --meta ${FLYEPLATFORM} \
+${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz --out-dir ${RESULTDIR}/MT_assembly -m ${FLYEMINOVERLAP} &
 wait
 echo '==' $(date) '==' de Novo MT assembly COMPLETED
 #
 
 # map selected long-reads to assembled contig(s)
 echo '==' $(date) '==' MT candidates fastq assembly mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} ${RESULTDIR}/MT_assembly/assembly.fasta ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -t ${MINIMAP2THREADS} ${RESULTDIR}/MT_assembly/assembly.fasta ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam; \
@@ -370,7 +359,7 @@ echo '==' $(date) '==' MT candidates fastq variation against assembly COMPLETED
 
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly reference mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/MT_assembly/assembly.fasta \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/MT_assembly/assembly.fasta \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam; \
@@ -397,7 +386,7 @@ echo '==' $(date) '==' Assembly variation against reference COMPLETED
 
 # for debugging
 echo '==' $(date) '==' Graph_before reference mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/MT_assembly/20-repeat/graph_before_rr.fasta \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/MT_assembly/20-repeat/graph_before_rr.fasta \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
 export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam; \
