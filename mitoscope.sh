@@ -132,7 +132,7 @@ export MITOSCOPE_RESOURCES="${MITOSCOPE_ROOT}/resources"
 export MITOSCOPE_SINGULARITY="${MITOSCOPE_ROOT}/singularity"
 export MITOSCOPE_TOOLS="${MITOSCOPE_ROOT}/tools"
 export KMCTOOLSCMD="${MITOSCOPE_SINGULARITY}/kmc_3.2.1.sif kmc_tools"
-export FLYECMD="${MITOSCOPE_SINGULARITY}/flye_2.9.1.sif flye"
+export FLYECMD="${MITOSCOPE_SINGULARITY}/flye_2.9.5.sif flye"
 export MINIMAP2CMD="${MITOSCOPE_SINGULARITY}/minimap2_2.24.sif minimap2"
 export SAMTOOLSCMD="${MITOSCOPE_SINGULARITY}/samtools_v1.15.1.sif samtools"
 export GENOMECOVERAGEBEDCMD="${MITOSCOPE_SINGULARITY}/bedtools_2.31.0.sif genomeCoverageBed"
@@ -152,8 +152,8 @@ OUTDIR="${OUTDIR%/}"
 [ ! -d "${OUTDIR}" ] && mkdir "${OUTDIR}"
 export RESULTDIR=${OUTDIR}/mitoscope
 export DEBUGDIR=${OUTDIR}/mitoscope/debug
-mkdir "${RESULTDIR}"
-mkdir "${DEBUGDIR}"
+mkdir -p "${RESULTDIR}"
+mkdir -p "${DEBUGDIR}"
 
 export FASTQPREFIX="$(basename "${INPUTFILE}")"
 export FASTQPREFIX="${FASTQPREFIX%.gz}"
@@ -181,8 +181,7 @@ if [[ "${INPUTFILE}" == *.fastq || "${INPUTFILE}" == *.fastq.gz ]]; then
 elif [[ "${INPUTFILE}" == *.bam ]]; then
     echo '==' $(date) '==' Bam to fastq conversion STARTED
     export FASTQ=${OUTDIR}/${FASTQPREFIX}.fastq.gz
-    ## if want to do MM,ML tag can pipe samtools fastq output to | tr | pigz?
-    ${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} -0 ${FASTQ} ${INPUTFILE}
+    ${SAMTOOLSCMD} fastq -T MM,ML -@ ${SAMTOOLSTHREADS} ${INPUTFILE} | tr '\t' ' ' | pigz -p ${PIGZTHREADS} - > ${FASTQ}
     echo '==' $(date) '==' Bam to fastq conversion COMPLETE
 fi
 #
@@ -190,13 +189,14 @@ fi
 # select long-reads which are likely from MT
 echo '==' $(date) '==' MT candidate fastq generation STARTED
 ${KMCTOOLSCMD} -t${KMCTOOLSTHREADS} filter ${MITOSCOPE_RESOURCES}/MT.k29 -ci1 ${FASTQ} -fq -ci2500 ${RESULTDIR}/${FASTQPREFIX}.MT.fastq 
-pigz -p ${PIGZTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq
+cat ${RESULTDIR}/${FASTQPREFIX}.MT.fastq | tr ' ' '\t' | pigz -p ${PIGZTHREADS} - > ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz
+rm ${RESULTDIR}/${FASTQPREFIX}.MT.fastq 
 echo '==' $(date) '==' MT candidate fastq generation ENDED
 #
 
 # align MT reads to ref for read filtration + debugging
 echo '==' $(date) '==' MT candidates fastq reference mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -y -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
 export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam; \
@@ -212,42 +212,48 @@ echo '==' $(date) '==' MT candidates fastq reference mapping COMPLETED
 
 # 
 echo '==' $(date) '==' MT candidates fastq variation against reference STARTED
-${SNIFFLESCMD} \
---output-rnames \
---qc-output-all --allow-overwrite \
+${SNIFFLESCMD} --output-rnames --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
 --input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam \
 --vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf
 
-${BCFTOOLSCMD} filter \
--i "SUPPORT>=${MINREADSUPPORT}" \
-${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf \
-> ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.ge${MINREADSUPPORT}.vcf
+${BCFTOOLSCMD} filter -i "SUPPORT>=${MINREADSUPPORT}" ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.ge${MINREADSUPPORT}.vcf
 echo '==' $(date) '==' MT candidates fastq variation against reference COMPLETED
-#       
+#
+
+## alternative strategy for propagating MM,ML tags 
+# # pull and append methylation information
+# if [[ "${INPUTFILE}" == *.bam ]]; then
+#     echo '==' $(date) '==' Append methylation tags STARTED
+#     ${SAMTOOLSCMD} view ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam | cut -f 1 | uniq > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.readnames.txt
+#     java -jar ${PICARDCMD} FilterSamReads -I ${INPUTFILE} -O ${DEBUGDIR}/${FASTQPREFIX}.MitoMethSubset.bam \
+#     -READ_LIST_FILE ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.readnames.txt -FILTER includeReadList 
+#     python ${MITOSCOPE_ROOT}/append_meth_tags.py --inputbam ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam --methbam ${DEBUGDIR}/${FASTQPREFIX}.MitoMethSubset.bam
+#     mv ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.withMeth.bam ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam
+#     #${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.withMeth.bam
+#     echo '==' $(date) '==' Append methylation tags COMPLETED
+# else
+#     echo '==' $(date) '==' For FASTQ input, append methylation tags SKIPPED
+# fi
+# #
 
 # remove foldback reads and NUMTs 
 echo '==' $(date) '==' Removal of foldback MT candidates STARTED
-python ${MITOSCOPE_ROOT}/filter_bam.py -i ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam 
+python ${MITOSCOPE_ROOT}/filter_bam.py --max_sc_threshold 100 -i ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam 
+${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
+${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.discardReads.bam
 echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
+# 
 
-echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam STARTED
-${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | pigz -p ${PIGZTHREADS} > ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz
-echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam COMPLETED
-#
+# call SVs using sniffles
+echo '==' $(date) '==' Filtered MT candidates fastq variation against reference STARTED
+${SNIFFLESCMD} --output-rnames --qc-output-all --allow-overwrite \
+--minsupport ${MINREADSUPPORT} \
+--input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
+--vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf
 
-# pull and append methylation information
-if [[ "${INPUTFILE}" == *.bam ]]; then
-    echo '==' $(date) '==' Append methylation tags STARTED
-    ${SAMTOOLSCMD} view ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | cut -f 1 | uniq > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.readnames.txt
-    java -jar ${PICARDCMD} FilterSamReads -I ${INPUTFILE} -O ${DEBUGDIR}/${FASTQPREFIX}.MitoMethSubset.bam \
-    -READ_LIST_FILE ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.readnames.txt -FILTER includeReadList 
-    python ${MITOSCOPE_ROOT}/append_meth_tags.py --inputbam ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam --methbam ${DEBUGDIR}/${FASTQPREFIX}.MitoMethSubset.bam
-    ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.withMeth.bam
-    echo '==' $(date) '==' Append methylation tags COMPLETED
-else
-    echo '==' $(date) '==' For FASTQ input, append methylation tags SKIPPED
-fi
+${BCFTOOLSCMD} filter -i "SUPPORT>=${MINREADSUPPORT}" ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.ge${MINREADSUPPORT}.vcf
+echo '==' $(date) '==' Filtered MT candidates fastq variation against reference COMPLETED
 #
 
 # call indels using Mutect2
@@ -316,11 +322,15 @@ ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv
 echo '==' $(date) '==' MITOMAP annotation of mutserve output COMPLETED
 #
 
+
 # assemble the selected long-reads
+echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam STARTED
+${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} -0 ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam 
+echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam COMPLETED
+
 echo '==' $(date) '==' de Novo MT assembly STARTED
 ${FLYECMD} --threads ${FLYETHREADS} --meta ${FLYEPLATFORM} \
-${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz --out-dir ${RESULTDIR}/MT_assembly -m ${FLYEMINOVERLAP} &
-wait
+${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz --out-dir ${RESULTDIR}/MT_assembly -m ${FLYEMINOVERLAP}
 echo '==' $(date) '==' de Novo MT assembly COMPLETED
 #
 
