@@ -12,6 +12,7 @@ import os
 def get_args():
     parser = argparse.ArgumentParser(description="Filters out reads in bam file representative of NUMTs and fold-backs (split reads with +/- alignments).")
     parser.add_argument("-i", "--input", help="File path of input bam.", required=True)
+    parser.add_argument("-m", "--max_sc_threshold", type=int, help="Maximum unaligned softclipping allowed in a read.", required=False, default=100)
     return parser.parse_args()
 
 args = get_args()
@@ -46,7 +47,7 @@ def is_foldback(read_parts):
     strands = {line.is_reverse for line in read_parts}
     return len(strands) > 1
 
-def is_NUMT(read_parts, max_unaligned_threshold=1000):
+def is_NUMT(read_parts, max_unaligned_threshold):
     """
     Determine whether a read resembles a NUMT sequence based on level of unaligned soft-clipping across alignments.
     Args:
@@ -81,7 +82,7 @@ def process_read_group(read_parts, read_counts, keep_file_handle, discard_file_h
     """
     if is_foldback(read_parts):
         category, target = 'foldback', discard_file_handle
-    elif is_NUMT(read_parts):
+    elif is_NUMT(read_parts, args.max_sc_threshold):
         category, target = 'numt', discard_file_handle
     else:
         category, target = 'kept', keep_file_handle
@@ -90,7 +91,6 @@ def process_read_group(read_parts, read_counts, keep_file_handle, discard_file_h
     for line in read_parts:
         target.write(line)
     #print(line.query_name)
-
 
 # Define output file names
 input_bam = args.input
