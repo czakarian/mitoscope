@@ -25,10 +25,6 @@
 
 set -eu -o pipefail
 
-## temp use R module for annotate.R 
-module load modules modules-init modules-gs
-module load R/4.3.2
-
 usage() {
     echo "Usage: mitoscope.sh -f <input_fastq> -p <ont|pb> [-t <threads>] [-m <minreadsupport>] [-c <cncov>]"
     echo
@@ -314,11 +310,11 @@ echo '==' $(date) '==' Haplocheck contamination check COMPLETED
 #
 
 # add MITOMAP annotations to mutserve output 
-## modify anno script to handle VCFs and maybe move from R to python/pandas?
 echo '==' $(date) '==' MITOMAP annotation of mutserve output STARTED
-Rscript ${MITOSCOPE_ROOT}/annotate.R \
-${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.txt \
-${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv
+python ${MITOSCOPE_ROOT}/annotate.py \
+--input ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz \
+--annotations ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv
+--caller mutserve 
 echo '==' $(date) '==' MITOMAP annotation of mutserve output COMPLETED
 #
 
