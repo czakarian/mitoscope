@@ -289,6 +289,12 @@ ${MUTSERVECMD} call ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
 echo '==' $(date) '==' Mutserve SNV calling COMPLETED
 ## rename txt output from mutserve since it always truncates full name
 mv ${RESULTDIR}/mutserve/${FASTQPREFIX%%.*}.txt ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.txt
+
+
+## normalize multiallelics
+${BCFTOOLSCMD} norm --multiallelics -both \
+${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz \
+-Oz -o ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
 #
 
 # haplogroup classification using haplogrep3
@@ -312,8 +318,8 @@ echo '==' $(date) '==' Haplocheck contamination check COMPLETED
 # add MITOMAP annotations to mutserve output 
 echo '==' $(date) '==' MITOMAP annotation of mutserve output STARTED
 python ${MITOSCOPE_ROOT}/annotate.py \
---input ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz \
---annotations ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv
+--input ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz \
+--annotations ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv \
 --caller mutserve 
 echo '==' $(date) '==' MITOMAP annotation of mutserve output COMPLETED
 #
