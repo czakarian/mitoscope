@@ -128,19 +128,20 @@ export MITOSCOPE_RESOURCES="${MITOSCOPE_ROOT}/resources"
 export MITOSCOPE_SINGULARITY="${MITOSCOPE_ROOT}/singularity"
 export MITOSCOPE_TOOLS="${MITOSCOPE_ROOT}/tools"
 export KMCTOOLSCMD="${MITOSCOPE_SINGULARITY}/kmc_3.2.1.sif kmc_tools"
-export FLYECMD="${MITOSCOPE_SINGULARITY}/flye_2.9.5.sif flye"
+export FLYECMD="${MITOSCOPE_SINGULARITY}/flye_2.9.6.sif flye"
 export MINIMAP2CMD="${MITOSCOPE_SINGULARITY}/minimap2_2.24.sif minimap2"
-export SAMTOOLSCMD="${MITOSCOPE_SINGULARITY}/samtools_v1.15.1.sif samtools"
+export SAMTOOLSCMD="${MITOSCOPE_SINGULARITY}/samtools_1.19.sif samtools"
+export BCFTOOLSCMD="${MITOSCOPE_SINGULARITY}/bcftools_1.19.sif bcftools"
 export GENOMECOVERAGEBEDCMD="${MITOSCOPE_SINGULARITY}/bedtools_2.31.0.sif genomeCoverageBed"
 export SORTBEDCMD="${MITOSCOPE_SINGULARITY}/bedtools_2.31.0.sif sortBed"
 export BG2BWCMD="${MITOSCOPE_SINGULARITY}/ucsc-bedgraphtobigwig_445.sif bedGraphToBigWig"
-export SNIFFLESCMD="${MITOSCOPE_SINGULARITY}/sniffles_2.3.3.sif sniffles"
-export BCFTOOLSCMD="${MITOSCOPE_SINGULARITY}/bcftools_1.19.sif bcftools"
+export SNIFFLESCMD="${MITOSCOPE_SINGULARITY}/sniffles_2.6.2.sif sniffles"
 export GATKCMD="${MITOSCOPE_SINGULARITY}/gatk_4.5.0.0.sif gatk"
-export MUTSERVECMD="${MITOSCOPE_TOOLS}/mutserve_2.0.1/mutserve"
-export HAPLOGREPCMD="${MITOSCOPE_TOOLS}/haplogrep_3.2.2/haplogrep3"
-export HAPLOCHECKCMD="${MITOSCOPE_TOOLS}/haplocheck_1.3.3/haplocheck"
-export PICARDCMD="${MITOSCOPE_TOOLS}/picard_3.3.0/picard.jar"
+export MUTSERVECMD="${MITOSCOPE_SINGULARITY}/mutserve_2.0.3.sif mutserve"
+export HAPLOGREPCMD="${MITOSCOPE_SINGULARITY}/haplogrep_3.2.2.sif haplogrep3"
+export HAPLOCHECKCMD="${MITOSCOPE_SINGULARITY}/haplocheck_1.3.3.sif haplocheck"
+export BALDURCMD="${MITOSCOPE_SINGULARITY}/baldur_1.2.2.sif baldur"
+
 
 INPUTFILE=$(readlink -f "${INPUTFILE}") ## resolve the symbolic link to actual file path
 export INPUTDIR=$(dirname "${INPUTFILE}")
@@ -217,22 +218,6 @@ ${BCFTOOLSCMD} filter -i "SUPPORT>=${MINREADSUPPORT}" ${DEBUGDIR}/${FASTQPREFIX}
 echo '==' $(date) '==' MT candidates fastq variation against reference COMPLETED
 #
 
-## alternative strategy for propagating MM,ML tags 
-# # pull and append methylation information
-# if [[ "${INPUTFILE}" == *.bam ]]; then
-#     echo '==' $(date) '==' Append methylation tags STARTED
-#     ${SAMTOOLSCMD} view ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam | cut -f 1 | uniq > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.readnames.txt
-#     java -jar ${PICARDCMD} FilterSamReads -I ${INPUTFILE} -O ${DEBUGDIR}/${FASTQPREFIX}.MitoMethSubset.bam \
-#     -READ_LIST_FILE ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.readnames.txt -FILTER includeReadList 
-#     python ${MITOSCOPE_ROOT}/append_meth_tags.py --inputbam ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam --methbam ${DEBUGDIR}/${FASTQPREFIX}.MitoMethSubset.bam
-#     mv ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.withMeth.bam ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam
-#     #${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.withMeth.bam
-#     echo '==' $(date) '==' Append methylation tags COMPLETED
-# else
-#     echo '==' $(date) '==' For FASTQ input, append methylation tags SKIPPED
-# fi
-# #
-
 # remove foldback reads and NUMTs 
 echo '==' $(date) '==' Removal of foldback MT candidates STARTED
 python ${MITOSCOPE_ROOT}/filter_bam.py --max_sc_threshold 100 -i ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam 
@@ -264,37 +249,71 @@ ${GATKCMD} AddOrReplaceReadGroups \
 ${GATKCMD} Mutect2 --mitochondria-mode \
 -R ${MITOSCOPE_RESOURCES}/MT.fasta \
 -I ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.RG.bam \
--O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2_raw.vcf.gz \
+-O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.vcf.gz \
 --native-pair-hmm-threads ${MUTECTTHREADS}
 
 ${GATKCMD} FilterMutectCalls --mitochondria-mode \
 -R ${MITOSCOPE_RESOURCES}/MT.fasta \
--V ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2_raw.vcf.gz \
--O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2_filters.vcf.gz
+-V ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.vcf.gz \
+-O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.withFilterValues.vcf.gz
 
-${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2_PASS.vcf.gz \
-${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2_filters.vcf.gz
-
+${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.withFilterValues.vcf.gz | \
+${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.norm.vcf.gz
 echo '==' $(date) '==' Mutect2 variant calling COMPLETED
+#
+
+# baldur variant calls (SNV, small indel, large deletion)
+echo '==' $(date) '==' Baldur variant calling START
+mkdir -p ${RESULTDIR}/baldur
+
+${BALDURCMD} -l debug --output-deletions -T ${MITOSCOPE_RESOURCES}/MT.fasta \
+-o ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
+
+${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.vcf.gz | \
+${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz 
+
+echo '==' $(date) '==' Baldur variant calling COMPLETED
+#
+
+# add MITOMAP annotations to baldur output 
+echo '==' $(date) '==' MITOMAP annotation of baldur output STARTED
+python ${MITOSCOPE_ROOT}/annotate.py \
+--input ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz \
+--annotations ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv \
+--caller baldur 
+echo '==' $(date) '==' MITOMAP annotation of baldur output COMPLETED
 #
 
 # call SNVs using mutserve 
 echo '==' $(date) '==' Mutserve SNV calling STARTED
 mkdir -p ${RESULTDIR}/mutserve
 
+## move into mutserve directory (so .txt file gets outputted in there)
+workdir=$(pwd)
+cd ${RESULTDIR}/mutserve
+
 ${MUTSERVECMD} call ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
---output ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz \
+--output ${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz \
 --reference ${MITOSCOPE_RESOURCES}/MT.fasta \
 --threads ${MUTSERVETHREADS} --no-ansi
-echo '==' $(date) '==' Mutserve SNV calling COMPLETED
-## rename txt output from mutserve since it always truncates full name
-mv ${RESULTDIR}/mutserve/${FASTQPREFIX%%.*}.txt ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.txt
 
+## rename txt output from mutserve since it always truncates full name
+#mv ${RESULTDIR}/mutserve/${FASTQPREFIX%%.*}.txt ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.txt
+cd ${workdir}
 
 ## normalize multiallelics
-${BCFTOOLSCMD} norm --multiallelics -both \
-${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz \
--Oz -o ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
+${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz | \
+${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
+#
+echo '==' $(date) '==' Mutserve SNV calling COMPLETED
+
+# add MITOMAP annotations to mutserve output 
+echo '==' $(date) '==' MITOMAP annotation of mutserve output STARTED
+python ${MITOSCOPE_ROOT}/annotate.py \
+--input ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz \
+--annotations ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv \
+--caller mutserve 
+echo '==' $(date) '==' MITOMAP annotation of mutserve output COMPLETED
 #
 
 # haplogroup classification using haplogrep3
@@ -315,19 +334,10 @@ ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz
 echo '==' $(date) '==' Haplocheck contamination check COMPLETED
 #
 
-# add MITOMAP annotations to mutserve output 
-echo '==' $(date) '==' MITOMAP annotation of mutserve output STARTED
-python ${MITOSCOPE_ROOT}/annotate.py \
---input ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz \
---annotations ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv \
---caller mutserve 
-echo '==' $(date) '==' MITOMAP annotation of mutserve output COMPLETED
-#
-
 
 # assemble the selected long-reads
 echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam STARTED
-${SAMTOOLSCMD} fastq -@ ${SAMTOOLSTHREADS} -0 ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam 
+${SAMTOOLSCMD} fastq -T MM,ML -@ ${SAMTOOLSTHREADS} -0 ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam 
 echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam COMPLETED
 
 echo '==' $(date) '==' de Novo MT assembly STARTED
@@ -338,7 +348,7 @@ echo '==' $(date) '==' de Novo MT assembly COMPLETED
 
 # map selected long-reads to assembled contig(s)
 echo '==' $(date) '==' MT candidates fastq assembly mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -t ${MINIMAP2THREADS} ${RESULTDIR}/MT_assembly/assembly.fasta ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
+(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -y -t ${MINIMAP2THREADS} ${RESULTDIR}/MT_assembly/assembly.fasta ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
 | ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
 export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam; \
