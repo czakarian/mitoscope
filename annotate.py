@@ -3,6 +3,7 @@
 """This script appends annotations from MITOMAP to a VCF file based on position, REF, ALT fields."""
 
 import argparse
+import gzip
 import re
 import os
 import pandas as pd
@@ -13,7 +14,8 @@ def get_args():
     parser = argparse.ArgumentParser(description="Appends annotations from MITOMAP to a VCF file based on position, REF, ALT fields.")
     parser.add_argument("-i", "--input", help="File path of input VCF (assumes gzipped).", required=True)
     parser.add_argument("-a", "--annotations", help="File path to MITOMAP annotation csv.", required=True)
-    parser.add_argument("-c", "--caller", help="Specify VCF caller used to generated VCF - mutserve, mutect2, or baldur.", required=True)
+    parser.add_argument("-c", "--caller", help="Specify VCF caller used to generated VCF - mutserve, mutect2, or baldur", required=True)
+    parser.add_argument("-m", "--multisample", help="Specify whether vcf is multisample vcf", action='store_true', default=False)
     return parser.parse_args()
 args = get_args()
 
@@ -38,6 +40,21 @@ def resolve_af(row):
         return af_values[0]
     else:
         raise ValueError(f"Unexpected genotype {gt} for multiallelic variant.")
+
+def reformat_dels(row):
+    ref = row['REF']
+    alt = row['ALT']
+    pos = row['POS']
+
+    if len(ref) > len(alt):
+        ref = ref[1:]
+        pos = pos + 1
+        if len(alt) == 1:
+            alt = 'del'
+        else:
+            raise ValueError(f"Unexpected ALT seq {alt}.")
+
+    return pos,ref,alt
 
 def create_heteroplasmy_plot(df):
 
@@ -68,6 +85,17 @@ def create_heteroplasmy_plot(df):
 
     return fig
 
+def read_vcf(input_file):
+    ## get column names from vcf header
+    with gzip.open(input_file, 'rt') as fr:
+        for line in fr:
+            if line.startswith('#CHROM'):
+                header = line.strip().lstrip('#').split('\t')
+                break
+
+    # create input df using column names
+    df = pd.read_csv(input_file, comment='#', sep='\t', compression='gzip', names=header)
+    return df
 
 input_file = args.input
 anno_file = args.annotations
@@ -79,35 +107,40 @@ anno_df['POS'] = anno_df['Position']
 anno_df = anno_df.drop(columns=['Position'])
 
 ## read in and format input VCF
-input_df = pd.read_csv(input_file,
-    comment='#', sep='\t', compression='gzip',
-    names=["CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMPLE"]  
-)
+# input_df = pd.read_csv(input_file,
+#     comment='#', sep='\t', compression='gzip',
+#     names=["CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMPLE"]  
+# )
+
+input_df = read_vcf(input_file)
 
 # remove blacklisted 3107 row
 input_df = input_df[input_df.POS != 3107]
 
-if caller == 'mutserve':
-    format_fields = ['GT', 'AF', 'BQ', 'DP']
-    input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True)
-elif caller == 'mutect2':
-    format_fields = ['GT', 'AD', 'AF', 'DP']
-    input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True).iloc[:,:4]
-elif caller == 'baldur':
-    format_fields = ['GT', 'ADF', 'ADR', 'AF', 'FQSE', 'AQ', 'AFLT', 'QAVG', 'FSB', 'QBS']
-    input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True)
-else:
-    # Handle case when caller is not defined or another case
-    format_column_fields = []
+if not args.multisample:
+    ## rename col names
+    input_df.columns=["CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMPLE"]
 
-# Handle multiallelics where AF field was not split // currently only handles up to 2 multiallleic variants, revisit for cases of more
-input_df['AF'] = input_df.apply(resolve_af, axis=1)
+    if caller == 'mutserve':
+        format_fields = ['GT', 'AF', 'BQ', 'DP']
+        input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True)
+    elif caller == 'mutect2':
+        format_fields = ['GT', 'AD', 'AF', 'DP']
+        input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True).iloc[:,:4]
+    elif caller == 'baldur':
+        format_fields = ['GT', 'ADF', 'ADR', 'AF', 'FQSE', 'AQ', 'AFLT', 'QAVG', 'FSB', 'QBS']
+        input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True)
+    else:
+        exit("--caller value is not recognized")
 
-print(input_df)
+    # Handle multiallelics where AF field was not split // currently only handles up to 2 multiallleic variants, revisit for cases of more
+    input_df['AF'] = input_df.apply(resolve_af, axis=1)
 
-input_df = input_df.drop(columns=['FORMAT', 'SAMPLE'])
-input_df[['POS', 'AF']] = input_df[['POS', 'AF']].apply(pd.to_numeric, errors='raise')
+    input_df = input_df.drop(columns=['FORMAT', 'SAMPLE'])
+    input_df[['POS', 'AF']] = input_df[['POS', 'AF']].apply(pd.to_numeric, errors='raise')
 
+## reformat deletions to match MITOMAP formatting (TC-T to C-del)
+input_df[['POS', 'REF', 'ALT']] = input_df.apply(reformat_dels, axis=1, result_type='expand')
 
 ## merge input df with anno df
 merged_df = pd.merge(input_df, anno_df, how="left", on=["POS", "REF", "ALT"])
@@ -116,6 +149,8 @@ merged_df['DiseaseVariantStatus'] = merged_df['Source'].apply(get_variant_status
 ## output annotated file and heteroplasmy plot
 input_prefix = os.path.join(os.path.dirname(input_file), re.sub(r"\.vcf.gz$", "", os.path.basename(input_file)))  
 merged_df.to_csv(f"{input_prefix}.annotated.txt", sep='\t', index=False)
-fig = create_heteroplasmy_plot(merged_df)
-fig.savefig(f"{input_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
+
+if not args.multisample:
+    fig = create_heteroplasmy_plot(merged_df)
+    fig.savefig(f"{input_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
 
