@@ -130,8 +130,8 @@ export MITOSCOPE_TOOLS="${MITOSCOPE_ROOT}/tools"
 export KMCTOOLSCMD="${MITOSCOPE_SINGULARITY}/kmc_3.2.1.sif kmc_tools"
 export FLYECMD="${MITOSCOPE_SINGULARITY}/flye_2.9.6.sif flye"
 export MINIMAP2CMD="${MITOSCOPE_SINGULARITY}/minimap2_2.24.sif minimap2"
-export SAMTOOLSCMD="${MITOSCOPE_SINGULARITY}/samtools_1.19.sif samtools"
-export BCFTOOLSCMD="${MITOSCOPE_SINGULARITY}/bcftools_1.19.sif bcftools"
+export SAMTOOLSCMD="${MITOSCOPE_SINGULARITY}/samtools_1.21.sif samtools"
+export BCFTOOLSCMD="${MITOSCOPE_SINGULARITY}/bcftools_1.21.sif bcftools"
 export GENOMECOVERAGEBEDCMD="${MITOSCOPE_SINGULARITY}/bedtools_2.31.0.sif genomeCoverageBed"
 export SORTBEDCMD="${MITOSCOPE_SINGULARITY}/bedtools_2.31.0.sif sortBed"
 export BG2BWCMD="${MITOSCOPE_SINGULARITY}/ucsc-bedgraphtobigwig_445.sif bedGraphToBigWig"
@@ -141,6 +141,7 @@ export MUTSERVECMD="${MITOSCOPE_SINGULARITY}/mutserve_2.0.3.sif mutserve"
 export HAPLOGREPCMD="${MITOSCOPE_SINGULARITY}/haplogrep_3.2.2.sif haplogrep3"
 export HAPLOCHECKCMD="${MITOSCOPE_SINGULARITY}/haplocheck_1.3.3.sif haplocheck"
 export BALDURCMD="${MITOSCOPE_SINGULARITY}/baldur_1.2.2.sif baldur"
+export MOSDEPTHCMD="${MITOSCOPE_SINGULARITY}/mosdepth_0.3.8.sif mosdepth"
 
 
 INPUTFILE=$(readlink -f "${INPUTFILE}") ## resolve the symbolic link to actual file path
@@ -149,8 +150,10 @@ OUTDIR="${OUTDIR%/}"
 [ ! -d "${OUTDIR}" ] && mkdir "${OUTDIR}"
 export RESULTDIR=${OUTDIR}/mitoscope
 export DEBUGDIR=${OUTDIR}/mitoscope/debug
+export QCDIR=${OUTDIR}/mitoscope/qc
 mkdir -p "${RESULTDIR}"
 mkdir -p "${DEBUGDIR}"
+mkdir -p "${QCDIR}"
 
 export FASTQPREFIX="$(basename "${INPUTFILE}")"
 export FASTQPREFIX="${FASTQPREFIX%.gz}"
@@ -226,51 +229,75 @@ ${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.disc
 echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
 # 
 
-# call SVs using sniffles
-echo '==' $(date) '==' Filtered MT candidates fastq variation against reference STARTED
-${SNIFFLESCMD} --output-rnames --qc-output-all --allow-overwrite \
---minsupport ${MINREADSUPPORT} \
---input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
---vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf
+### some qc steps // coverage / read lengths / n50s
+${MOSDEPTHCMD} ${QCDIR}/${FASTQPREFIX} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
+${MITOSCOPE_ROOT}/qc_plot_coverage.py --input ${QCDIR}/${FASTQPREFIX}.per-base.bed.gz --outprefix ${QCDIR}/${FASTQPREFIX}
 
-${BCFTOOLSCMD} filter -i "SUPPORT>=${MINREADSUPPORT}" ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.ge${MINREADSUPPORT}.vcf
-echo '==' $(date) '==' Filtered MT candidates fastq variation against reference COMPLETED
-#
+${SAMTOOLSCMD} view ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | awk '{print length($10)}' > ${QCDIR}/${FASTQPREFIX}.read_lengths.txt
+${MITOSCOPE_ROOT}/qc_plot_read_lengths.py --input ${QCDIR}/${FASTQPREFIX}.read_lengths.txt --outprefix ${QCDIR}/${FASTQPREFIX}
 
-# call indels using Mutect2
-echo '==' $(date) '==' Mutect2 variant calling STARTED
-mkdir -p ${RESULTDIR}/mutect
+## add mean coverage, avg read length, n50 to a qc_stats_summary.txt file
+echo '==' $(date) '==' Get basic QC stats -- mean coverage, read count, avg read length, n50 STARTED
+mean_cov=$(awk '$1 == "MT" {print $4}' ${QCDIR}/${FASTQPREFIX}.mosdepth.summary.txt)
+read_count=$(cat ${QCDIR}/${FASTQPREFIX}.read_lengths.txt | wc -l)
+avg_length=$(awk '{sum+=$1} END {print sum/NR}' ${QCDIR}/${FASTQPREFIX}.read_lengths.txt)
 
-${GATKCMD} AddOrReplaceReadGroups \
--I ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
--O ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.RG.bam  \
---RGLB lib1 --RGPL wgs --RGPU unit1 --RGSM ${FASTQPREFIX} --SORT_ORDER coordinate --CREATE_INDEX true 
+## calculate N50
+n50=$(awk '{sum+=$1; arr[NR]=$1} END {
+    half = sum/2;
+    n = asort(arr);
+    total = 0;
+    for (i = n; i >= 1; i--) {
+        total += arr[i];
+        if (total >= half) {
+            print arr[i];
+            break;
+        }
+    }
+}' ${QCDIR}/${FASTQPREFIX}.read_lengths.txt)
 
-${GATKCMD} Mutect2 --mitochondria-mode \
--R ${MITOSCOPE_RESOURCES}/MT.fasta \
--I ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.RG.bam \
--O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.vcf.gz \
---native-pair-hmm-threads ${MUTECTTHREADS}
+echo -e "Sample\tRead_Count\tMean_Coverage\tAverage_Read_Length\tN50" > ${QCDIR}/${FASTQPREFIX}.qc_summary.txt
+echo -e "${FASTQPREFIX}\t${read_count}\t${mean_cov}\t${avg_length}\t${n50}" >> ${QCDIR}/${FASTQPREFIX}.qc_summary.txt
 
-${GATKCMD} FilterMutectCalls --mitochondria-mode \
--R ${MITOSCOPE_RESOURCES}/MT.fasta \
--V ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.vcf.gz \
--O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.withFilterValues.vcf.gz
+echo '==' $(date) '==' Get basic QC stats -- mean coverage, read count, avg read length, n50 COMPLETED
+###
 
-${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.withFilterValues.vcf.gz | \
-${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.norm.vcf.gz
-echo '==' $(date) '==' Mutect2 variant calling COMPLETED
-#
+# # call indels using Mutect2
+# echo '==' $(date) '==' Mutect2 variant calling STARTED
+# mkdir -p ${RESULTDIR}/mutect
+
+# ${GATKCMD} AddOrReplaceReadGroups \
+# -I ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
+# -O ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.RG.bam  \
+# --RGLB lib1 --RGPL wgs --RGPU unit1 --RGSM ${FASTQPREFIX} --SORT_ORDER coordinate --CREATE_INDEX true 
+
+# ${GATKCMD} Mutect2 --mitochondria-mode \
+# -R ${MITOSCOPE_RESOURCES}/MT.fasta \
+# -I ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.RG.bam \
+# -O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.vcf.gz \
+# --native-pair-hmm-threads ${MUTECTTHREADS}
+
+# ${GATKCMD} FilterMutectCalls --mitochondria-mode \
+# -R ${MITOSCOPE_RESOURCES}/MT.fasta \
+# -V ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.vcf.gz \4
+# -O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.withFilterValues.vcf.gz
+
+# ${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.withFilterValues.vcf.gz | \
+# ${BCFTOOLSCMD} norm --atomize | ${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.norm.vcf.gz
+# ${BCFTOOLSCMD} index --tbi ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.norm.vcf.gz
+# echo '==' $(date) '==' Mutect2 variant calling COMPLETED
+
 
 # baldur variant calls (SNV, small indel, large deletion)
 echo '==' $(date) '==' Baldur variant calling START
 mkdir -p ${RESULTDIR}/baldur
 
-${BALDURCMD} -l debug --output-deletions -T ${MITOSCOPE_RESOURCES}/MT.fasta \
+${BALDURCMD} -n ${FASTQPREFIX} -l debug --output-deletions -T ${MITOSCOPE_RESOURCES}/MT.fasta \
 -o ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
 
 ${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.vcf.gz | \
-${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz 
+${BCFTOOLSCMD} norm --atomize | ${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz 
+${BCFTOOLSCMD} index --tbi ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz 
 
 echo '==' $(date) '==' Baldur variant calling COMPLETED
 #
@@ -301,9 +328,11 @@ ${MUTSERVECMD} call ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
 #mv ${RESULTDIR}/mutserve/${FASTQPREFIX%%.*}.txt ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.txt
 cd ${workdir}
 
-## normalize multiallelics
+# ## normalize multiallelics
 ${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz | \
-${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
+${BCFTOOLSCMD} norm --atomize | ${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
+${BCFTOOLSCMD} index --tbi ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
+
 #
 echo '==' $(date) '==' Mutserve SNV calling COMPLETED
 
@@ -334,6 +363,16 @@ ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz
 echo '==' $(date) '==' Haplocheck contamination check COMPLETED
 #
 
+# call SVs using sniffles
+echo '==' $(date) '==' Filtered MT candidates fastq variation against reference STARTED
+${SNIFFLESCMD} --output-rnames --qc-output-all --allow-overwrite \
+--minsupport ${MINREADSUPPORT} \
+--input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
+--vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf
+
+${BCFTOOLSCMD} filter -i "SUPPORT>=${MINREADSUPPORT}" ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.ge${MINREADSUPPORT}.vcf
+echo '==' $(date) '==' Filtered MT candidates fastq variation against reference COMPLETED
+#
 
 # assemble the selected long-reads
 echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam STARTED
