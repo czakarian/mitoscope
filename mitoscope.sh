@@ -212,7 +212,7 @@ echo '==' $(date) '==' MT candidates fastq reference mapping COMPLETED
 
 # 
 echo '==' $(date) '==' MT candidates fastq variation against reference STARTED
-${SNIFFLESCMD} --output-rnames --qc-output-all --allow-overwrite \
+${SNIFFLESCMD} --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
 --input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam \
 --vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf
@@ -231,10 +231,10 @@ echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
 
 ### some qc steps // coverage / read lengths / n50s
 ${MOSDEPTHCMD} ${QCDIR}/${FASTQPREFIX} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
-${MITOSCOPE_ROOT}/qc_plot_coverage.py --input ${QCDIR}/${FASTQPREFIX}.per-base.bed.gz --outprefix ${QCDIR}/${FASTQPREFIX}
+${MITOSCOPE_ROOT}/qc_plots.py --plot coverage --input ${QCDIR}/${FASTQPREFIX}.per-base.bed.gz --outprefix ${QCDIR}/${FASTQPREFIX}
 
 ${SAMTOOLSCMD} view ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | awk '{print length($10)}' > ${QCDIR}/${FASTQPREFIX}.read_lengths.txt
-${MITOSCOPE_ROOT}/qc_plot_read_lengths.py --input ${QCDIR}/${FASTQPREFIX}.read_lengths.txt --outprefix ${QCDIR}/${FASTQPREFIX}
+${MITOSCOPE_ROOT}/qc_plots.py --plot read_length --input ${QCDIR}/${FASTQPREFIX}.read_lengths.txt --outprefix ${QCDIR}/${FASTQPREFIX}
 
 ## add mean coverage, avg read length, n50 to a qc_stats_summary.txt file
 echo '==' $(date) '==' Get basic QC stats -- mean coverage, read count, avg read length, n50 STARTED
@@ -365,7 +365,7 @@ echo '==' $(date) '==' Haplocheck contamination check COMPLETED
 
 # call SVs using sniffles
 echo '==' $(date) '==' Filtered MT candidates fastq variation against reference STARTED
-${SNIFFLESCMD} --output-rnames --qc-output-all --allow-overwrite \
+${SNIFFLESCMD} --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
 --input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
 --vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf
@@ -404,9 +404,7 @@ echo '==' $(date) '==' MT candidates fastq assembly mapping COMPLETED
 
 # call variations of selected long-reads w.r.t. assembled contig(s)
 echo '==' $(date) '==' MT candidates fastq variation against assembly STARTED
-${SNIFFLESCMD} \
---output-rnames \
---qc-output-all --allow-overwrite \
+${SNIFFLESCMD} --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
 --input ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam \
 --vcf ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf
@@ -436,9 +434,7 @@ echo '==' $(date) '==' Assembly reference mapping COMPLETED
 
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly variation against reference STARTED
-${SNIFFLESCMD} \
---output-rnames \
---qc-output-all --allow-overwrite \
+${SNIFFLESCMD} --qc-output-all --allow-overwrite \
 --input ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam \
 --vcf ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam.raw.vcf
 echo '==' $(date) '==' Assembly variation against reference COMPLETED
