@@ -26,7 +26,7 @@
 set -eu -o pipefail
 
 usage() {
-    echo "Usage: mitoscope.sh -f <input_fastq> -p <ont|pb> [-t <threads>] [-m <minreadsupport>] [-c <cncov>]"
+    echo "Usage: mitoscope.sh -i <input_fastq> -p <ont|pb> [-t <threads>] [-m <minreadsupport>] [-c <cncov>]"
     echo
     echo "Required arguments:"
     echo "  -i <input>            Input FASTQ or BAM file."
@@ -36,7 +36,7 @@ usage() {
     echo "Optional arguments:"
     echo "  -t <threads>          Number of threads to use (default: 4)."
     echo "  -m <minreadsupport>   Minimum read support for SV calling (default: 2)."
-    echo "  -c <cncov>            CN Coverage? (default: ??)."
+    echo "  -c <cncov>            CN Coverage? (default: 12)."
 }
 
 # Check if no arguments were passed
@@ -142,6 +142,7 @@ export HAPLOGREPCMD="${MITOSCOPE_SINGULARITY}/haplogrep_3.2.2.sif haplogrep3"
 export HAPLOCHECKCMD="${MITOSCOPE_SINGULARITY}/haplocheck_1.3.3.sif haplocheck"
 export BALDURCMD="${MITOSCOPE_SINGULARITY}/baldur_1.2.2.sif baldur"
 export MOSDEPTHCMD="${MITOSCOPE_SINGULARITY}/mosdepth_0.3.8.sif mosdepth"
+export MINIMODCMD="${MITOSCOPE_TOOLS}/minimod/minimod-v0.4.0/minimod"
 
 
 INPUTFILE=$(readlink -f "${INPUTFILE}") ## resolve the symbolic link to actual file path
@@ -149,10 +150,12 @@ export INPUTDIR=$(dirname "${INPUTFILE}")
 OUTDIR="${OUTDIR%/}"
 [ ! -d "${OUTDIR}" ] && mkdir "${OUTDIR}"
 export RESULTDIR=${OUTDIR}/mitoscope
-export DEBUGDIR=${OUTDIR}/mitoscope/debug
+export ALIGNDIR=${OUTDIR}/mitoscope/alignments
+export VARIANTDIR=${OUTDIR}/mitoscope/variants
 export QCDIR=${OUTDIR}/mitoscope/qc
 mkdir -p "${RESULTDIR}"
-mkdir -p "${DEBUGDIR}"
+mkdir -p "${ALIGNDIR}"
+mkdir -p "${VARIANTDIR}"
 mkdir -p "${QCDIR}"
 
 export FASTQPREFIX="$(basename "${INPUTFILE}")"
@@ -171,6 +174,7 @@ export SAMTOOLSTHREADS=${THREADS}
 export FLYETHREADS=${THREADS}
 export MUTSERVETHREADS=${THREADS}
 export MUTECTTHREADS=${THREADS}
+export MINIMODTHREADS=${THREADS}
 
 export FLYEMINOVERLAP=2500
 
@@ -186,7 +190,7 @@ elif [[ "${INPUTFILE}" == *.bam ]]; then
 fi
 #
 
-# select long-reads which are likely from MT
+## select long-reads which are likely from MT
 echo '==' $(date) '==' MT candidate fastq generation STARTED
 ${KMCTOOLSCMD} -t${KMCTOOLSTHREADS} filter ${MITOSCOPE_RESOURCES}/MT.k29 -ci1 ${FASTQ} -fq -ci2500 ${RESULTDIR}/${FASTQPREFIX}.MT.fastq 
 cat ${RESULTDIR}/${FASTQPREFIX}.MT.fastq | tr ' ' '\t' | pigz -p ${PIGZTHREADS} - > ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz
@@ -196,48 +200,38 @@ echo '==' $(date) '==' MT candidate fastq generation ENDED
 
 # align MT reads to ref for read filtration + debugging
 echo '==' $(date) '==' MT candidates fastq reference mapping STARTED
-(${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -y -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
-| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
-${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam ; \
-export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam; \
-export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
-echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
-${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
-echo '==' $(date) '==' Generating bigwig for ${DSNAME}.. ; \
-${BG2BWCMD} ${DSNAME}.bg ${MITOSCOPE_RESOURCES}/MT.fasta.fai ${DSNAME}.bw && rm ${DSNAME}.bg ; \
-echo '==' $(date) '==' Done. ) &
-wait
+${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -y -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/${FASTQPREFIX}.MT.fastq.gz \
+| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.bam 
+${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.bam 
 echo '==' $(date) '==' MT candidates fastq reference mapping COMPLETED
-#
-
-# 
-echo '==' $(date) '==' MT candidates fastq variation against reference STARTED
-${SNIFFLESCMD} --qc-output-all --allow-overwrite \
---minsupport ${MINREADSUPPORT} \
---input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam \
---vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf
-
-${BCFTOOLSCMD} filter -i "SUPPORT>=${MINREADSUPPORT}" ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.vcf > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam.raw.ge${MINREADSUPPORT}.vcf
-echo '==' $(date) '==' MT candidates fastq variation against reference COMPLETED
 #
 
 # remove foldback reads and NUMTs 
 echo '==' $(date) '==' Removal of foldback MT candidates STARTED
-python ${MITOSCOPE_ROOT}/filter_bam.py --max_sc_threshold 100 -i ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.bam 
-${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
-${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.discardReads.bam
+python ${MITOSCOPE_ROOT}/filter_bam.py -i ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.bam 
+${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
+${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.discardReads.bam
 echo '==' $(date) '==' Removal of foldback MT candidates COMPLETED
 # 
 
-### some qc steps // coverage / read lengths / n50s
-${MOSDEPTHCMD} ${QCDIR}/${FASTQPREFIX} ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
+### some qc steps // coverage / read lengths / n50s / methylation
+echo '==' $(date) '==' Get basic QC stats -- methylation, mean coverage, read count, avg read length, n50 STARTED
+
+# plot average methylation levels across MT genome 
+${MINIMODCMD} freq -t ${MINIMODTHREADS} -m 0.5 -o ${QCDIR}/${FASTQPREFIX}.minimod.tsv ${MITOSCOPE_RESOURCES}/MT.fasta ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam 
+sort -k2 -n ${QCDIR}/${FASTQPREFIX}.minimod.tsv -o ${QCDIR}/${FASTQPREFIX}.minimod.tsv
+${MITOSCOPE_ROOT}/qc_plots.py --plot methylation --input ${QCDIR}/${FASTQPREFIX}.minimod.tsv --outprefix ${QCDIR}/${FASTQPREFIX}
+tail +2 ${QCDIR}/${FASTQPREFIX}.minimod.tsv | cut -f 1-3,7  > ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.minimod.bedGraph
+
+## plot mean coverage across MT genome
+${MOSDEPTHCMD} ${QCDIR}/${FASTQPREFIX} ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
 ${MITOSCOPE_ROOT}/qc_plots.py --plot coverage --input ${QCDIR}/${FASTQPREFIX}.per-base.bed.gz --outprefix ${QCDIR}/${FASTQPREFIX}
 
-${SAMTOOLSCMD} view ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | awk '{print length($10)}' > ${QCDIR}/${FASTQPREFIX}.read_lengths.txt
+## plot avg read length
+${SAMTOOLSCMD} view ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam | awk '{print length($10)}' > ${QCDIR}/${FASTQPREFIX}.read_lengths.txt
 ${MITOSCOPE_ROOT}/qc_plots.py --plot read_length --input ${QCDIR}/${FASTQPREFIX}.read_lengths.txt --outprefix ${QCDIR}/${FASTQPREFIX}
 
-## add mean coverage, avg read length, n50 to a qc_stats_summary.txt file
-echo '==' $(date) '==' Get basic QC stats -- mean coverage, read count, avg read length, n50 STARTED
+## get overall qc stats and to qc_summary.txt
 mean_cov=$(awk '$1 == "MT" {print $4}' ${QCDIR}/${FASTQPREFIX}.mosdepth.summary.txt)
 read_count=$(cat ${QCDIR}/${FASTQPREFIX}.read_lengths.txt | wc -l)
 avg_length=$(awk '{sum+=$1} END {print sum/NR}' ${QCDIR}/${FASTQPREFIX}.read_lengths.txt)
@@ -256,48 +250,33 @@ n50=$(awk '{sum+=$1; arr[NR]=$1} END {
     }
 }' ${QCDIR}/${FASTQPREFIX}.read_lengths.txt)
 
-echo -e "Sample\tRead_Count\tMean_Coverage\tAverage_Read_Length\tN50" > ${QCDIR}/${FASTQPREFIX}.qc_summary.txt
-echo -e "${FASTQPREFIX}\t${read_count}\t${mean_cov}\t${avg_length}\t${n50}" >> ${QCDIR}/${FASTQPREFIX}.qc_summary.txt
+# get methylation stats
+avg_meth=$(awk '{sum+=$7} END {print sum/(NR-1)}' ${QCDIR}/${FASTQPREFIX}.minimod.tsv)
+meth_gt_1=$(awk 'NR>1 && $7 > 0.01 {count++} END {print count/(NR-1)}' ${QCDIR}/${FASTQPREFIX}.minimod.tsv)
+meth_gt_5=$(awk 'NR>1 && $7 > 0.05 {count++} END {print count/(NR-1)}' ${QCDIR}/${FASTQPREFIX}.minimod.tsv)
+meth_gt_10=$(awk 'NR>1 && $7 > 0.1 {count++} END {print count/(NR-1)}' ${QCDIR}/${FASTQPREFIX}.minimod.tsv)
 
-echo '==' $(date) '==' Get basic QC stats -- mean coverage, read count, avg read length, n50 COMPLETED
-###
+echo -e "Sample\tRead_Count\tMean_Coverage\tAverage_Read_Length\tN50\tAverage_Methylation_Percent\tNum_Meth_Sites_GT_1\tNum_Meth_Sites_GT_5\tNum_Meth_Sites_GT_10" > ${QCDIR}/${FASTQPREFIX}.qc_summary.txt
+echo -e "${FASTQPREFIX}\t${read_count}\t${mean_cov}\t${avg_length}\t${n50}\t${avg_meth}\t${meth_gt_1}\t${meth_gt_5}\t${meth_gt_10}" >> ${QCDIR}/${FASTQPREFIX}.qc_summary.txt
 
-# # call indels using Mutect2
-# echo '==' $(date) '==' Mutect2 variant calling STARTED
-# mkdir -p ${RESULTDIR}/mutect
-
-# ${GATKCMD} AddOrReplaceReadGroups \
-# -I ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
-# -O ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.RG.bam  \
-# --RGLB lib1 --RGPL wgs --RGPU unit1 --RGSM ${FASTQPREFIX} --SORT_ORDER coordinate --CREATE_INDEX true 
-
-# ${GATKCMD} Mutect2 --mitochondria-mode \
-# -R ${MITOSCOPE_RESOURCES}/MT.fasta \
-# -I ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.RG.bam \
-# -O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.vcf.gz \
-# --native-pair-hmm-threads ${MUTECTTHREADS}
-
-# ${GATKCMD} FilterMutectCalls --mitochondria-mode \
-# -R ${MITOSCOPE_RESOURCES}/MT.fasta \
-# -V ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.vcf.gz \4
-# -O ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.withFilterValues.vcf.gz
-
-# ${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.withFilterValues.vcf.gz | \
-# ${BCFTOOLSCMD} norm --atomize | ${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.norm.vcf.gz
-# ${BCFTOOLSCMD} index --tbi ${RESULTDIR}/mutect/${FASTQPREFIX}.MT.ref.filtered.mutect2.norm.vcf.gz
-# echo '==' $(date) '==' Mutect2 variant calling COMPLETED
-
+echo '==' $(date) '==' Get basic QC stats -- methylation, mean coverage, read count, avg read length, n50 COMPLETED
+##
 
 # baldur variant calls (SNV, small indel, large deletion)
 echo '==' $(date) '==' Baldur variant calling START
-mkdir -p ${RESULTDIR}/baldur
+mkdir -p ${VARIANTDIR}/baldur
 
 ${BALDURCMD} -n ${FASTQPREFIX} -l debug --output-deletions -T ${MITOSCOPE_RESOURCES}/MT.fasta \
--o ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
+-o ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam
 
-${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.vcf.gz | \
-${BCFTOOLSCMD} norm --atomize | ${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz 
-${BCFTOOLSCMD} index --tbi ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz 
+${BCFTOOLSCMD} norm --multiallelics -both ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.vcf.gz | \
+${BCFTOOLSCMD} norm --atomize | ${BCFTOOLSCMD} view -f PASS -Oz -o ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz 
+${BCFTOOLSCMD} index --tbi ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz 
+
+${BCFTOOLSCMD} view --types indels ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz -Oz -o ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.indels.vcf.gz 
+${BCFTOOLSCMD} view --exclude-types indels ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz -Oz -o ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.snvs.vcf.gz 
+${BCFTOOLSCMD} index --tbi ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.indels.vcf.gz 
+${BCFTOOLSCMD} index --tbi ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.snvs.vcf.gz 
 
 echo '==' $(date) '==' Baldur variant calling COMPLETED
 #
@@ -305,7 +284,12 @@ echo '==' $(date) '==' Baldur variant calling COMPLETED
 # add MITOMAP annotations to baldur output 
 echo '==' $(date) '==' MITOMAP annotation of baldur output STARTED
 python ${MITOSCOPE_ROOT}/annotate.py \
---input ${RESULTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.vcf.gz \
+--input ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.indels.vcf.gz \
+--annotations ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv \
+--caller baldur 
+
+python ${MITOSCOPE_ROOT}/annotate.py \
+--input ${VARIANTDIR}/baldur/${FASTQPREFIX}.MT.ref.filtered.baldur.norm.snvs.vcf.gz \
 --annotations ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv \
 --caller baldur 
 echo '==' $(date) '==' MITOMAP annotation of baldur output COMPLETED
@@ -313,25 +297,25 @@ echo '==' $(date) '==' MITOMAP annotation of baldur output COMPLETED
 
 # call SNVs using mutserve 
 echo '==' $(date) '==' Mutserve SNV calling STARTED
-mkdir -p ${RESULTDIR}/mutserve
+mkdir -p ${VARIANTDIR}/mutserve
 
 ## move into mutserve directory (so .txt file gets outputted in there)
 workdir=$(pwd)
-cd ${RESULTDIR}/mutserve
+cd ${VARIANTDIR}/mutserve
 
-${MUTSERVECMD} call ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
+${MUTSERVECMD} call ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
 --output ${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz \
 --reference ${MITOSCOPE_RESOURCES}/MT.fasta \
 --threads ${MUTSERVETHREADS} --no-ansi
 
 ## rename txt output from mutserve since it always truncates full name
-#mv ${RESULTDIR}/mutserve/${FASTQPREFIX%%.*}.txt ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.txt
+#mv ${VARIANTDIR}/mutserve/${FASTQPREFIX%%.*}.txt ${VARIANTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.txt
 cd ${workdir}
 
 # ## normalize multiallelics
-${BCFTOOLSCMD} norm --multiallelics -both ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz | \
-${BCFTOOLSCMD} norm --atomize | ${BCFTOOLSCMD} view -f PASS -Oz -o ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
-${BCFTOOLSCMD} index --tbi ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
+${BCFTOOLSCMD} norm --multiallelics -both ${VARIANTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz | \
+${BCFTOOLSCMD} norm --atomize | ${BCFTOOLSCMD} view -f PASS -Oz -o ${VARIANTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
+${BCFTOOLSCMD} index --tbi ${VARIANTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz
 
 #
 echo '==' $(date) '==' Mutserve SNV calling COMPLETED
@@ -339,27 +323,29 @@ echo '==' $(date) '==' Mutserve SNV calling COMPLETED
 # add MITOMAP annotations to mutserve output 
 echo '==' $(date) '==' MITOMAP annotation of mutserve output STARTED
 python ${MITOSCOPE_ROOT}/annotate.py \
---input ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz \
+--input ${VARIANTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.norm.vcf.gz \
 --annotations ${MITOSCOPE_ROOT}/annotations/CombinedDiseaseVariantDB.csv \
 --caller mutserve 
 echo '==' $(date) '==' MITOMAP annotation of mutserve output COMPLETED
 #
 
 # haplogroup classification using haplogrep3
+mkdir -p ${VARIANTDIR}/haplogrep
+
 echo '==' $(date) '==' Haplogroup classification STARTED
 TREE="phylotree-rcrs@17.2"
 ${HAPLOGREPCMD} classify \
 --tree ${TREE} \
---input ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz \
---output ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.haplogrep.txt \
+--input ${VARIANTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz \
+--output ${VARIANTDIR}/haplogrep/${FASTQPREFIX}.MT.ref.filtered.haplogrep.txt \
 --extend-report --write-qc
 echo '==' $(date) '==' Haplogroup classification COMPLETED
 #
 
 # haplocheck contamination check
 echo '==' $(date) '==' Haplocheck contamination check STARTED
-${HAPLOCHECKCMD} --raw --out ${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.haplocheck.txt \
-${RESULTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz 
+${HAPLOCHECKCMD} --raw --out ${VARIANTDIR}/haplogrep/${FASTQPREFIX}.MT.ref.filtered.haplocheck.txt \
+${VARIANTDIR}/mutserve/${FASTQPREFIX}.MT.ref.filtered.mutserve.vcf.gz 
 echo '==' $(date) '==' Haplocheck contamination check COMPLETED
 #
 
@@ -367,16 +353,16 @@ echo '==' $(date) '==' Haplocheck contamination check COMPLETED
 echo '==' $(date) '==' Filtered MT candidates fastq variation against reference STARTED
 ${SNIFFLESCMD} --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
---input ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
---vcf ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf
+--input ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam \
+--vcf ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf
 
-${BCFTOOLSCMD} filter -i "SUPPORT>=${MINREADSUPPORT}" ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf > ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.ge${MINREADSUPPORT}.vcf
+${BCFTOOLSCMD} filter -i "SUPPORT>=${MINREADSUPPORT}" ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.vcf > ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam.raw.ge${MINREADSUPPORT}.vcf
 echo '==' $(date) '==' Filtered MT candidates fastq variation against reference COMPLETED
 #
 
 # assemble the selected long-reads
 echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam STARTED
-${SAMTOOLSCMD} fastq -T MM,ML -@ ${SAMTOOLSTHREADS} -0 ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz ${DEBUGDIR}/${FASTQPREFIX}.MT.ref.filtered.bam 
+${SAMTOOLSCMD} fastq -T MM,ML -@ ${SAMTOOLSTHREADS} -0 ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz ${ALIGNDIR}/${FASTQPREFIX}.MT.ref.filtered.bam 
 echo '==' $(date) '==' Bam to fastq conversion for NUMT/foldback filtered bam COMPLETED
 
 echo '==' $(date) '==' de Novo MT assembly STARTED
@@ -388,9 +374,9 @@ echo '==' $(date) '==' de Novo MT assembly COMPLETED
 # map selected long-reads to assembled contig(s)
 echo '==' $(date) '==' MT candidates fastq assembly mapping STARTED
 (${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -y -t ${MINIMAP2THREADS} ${RESULTDIR}/MT_assembly/assembly.fasta ${RESULTDIR}/${FASTQPREFIX}.MT.filtered.fastq.gz \
-| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
-${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
-export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam; \
+| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
+${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.bam ; \
+export DSNAME=${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.bam; \
 export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
 ${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
@@ -406,22 +392,20 @@ echo '==' $(date) '==' MT candidates fastq assembly mapping COMPLETED
 echo '==' $(date) '==' MT candidates fastq variation against assembly STARTED
 ${SNIFFLESCMD} --qc-output-all --allow-overwrite \
 --minsupport ${MINREADSUPPORT} \
---input ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam \
---vcf ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf
+--input ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.bam \
+--vcf ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf
 
-${BCFTOOLSCMD} filter \
--i "SUPPORT>=${MINREADSUPPORT}" \
-${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf \
-> ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.ge${MINREADSUPPORT}.vcf
+${BCFTOOLSCMD} filter -i "SUPPORT>=${MINREADSUPPORT}" ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf \
+> ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.ge${MINREADSUPPORT}.vcf
 echo '==' $(date) '==' MT candidates fastq variation against assembly COMPLETED
 #
 
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly reference mapping STARTED
 (${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/MT_assembly/assembly.fasta \
-| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
-${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
-export DSNAME=${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam; \
+| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
+${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.ref.bam ; \
+export DSNAME=${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.ref.bam; \
 export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
 ${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
@@ -435,8 +419,8 @@ echo '==' $(date) '==' Assembly reference mapping COMPLETED
 # for inter-sample anchoring + debugging
 echo '==' $(date) '==' Assembly variation against reference STARTED
 ${SNIFFLESCMD} --qc-output-all --allow-overwrite \
---input ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam \
---vcf ${RESULTDIR}/${FASTQPREFIX}.MT.assembly.ref.bam.raw.vcf
+--input ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.ref.bam \
+--vcf ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.ref.bam.raw.vcf
 echo '==' $(date) '==' Assembly variation against reference COMPLETED
 #
 
@@ -444,9 +428,9 @@ echo '==' $(date) '==' Assembly variation against reference COMPLETED
 # for debugging
 echo '==' $(date) '==' Graph_before reference mapping STARTED
 (${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -Y -t ${MINIMAP2THREADS} ${MITOSCOPE_RESOURCES}/${MINIMAPINDEX} ${RESULTDIR}/MT_assembly/20-repeat/graph_before_rr.fasta \
-| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
-${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
-export DSNAME=${DEBUGDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam; \
+| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${ALIGNDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
+${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${ALIGNDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam ; \
+export DSNAME=${ALIGNDIR}/${FASTQPREFIX}.MT.graph_before_rr.ref.bam; \
 export CNSCALE=$(awk -v DICNSCALE=$(expr 2 \* ${covCN}) 'BEGIN{print 2/DICNSCALE}') ; \
 echo '==' $(date) '==' Generating bedgraph for ${DSNAME}.. ; \
 ${GENOMECOVERAGEBEDCMD} -bg -split -scale ${CNSCALE} -ibam ${DSNAME} | ${SORTBEDCMD} -i - > ${DSNAME}.bg ; \
@@ -470,12 +454,12 @@ perl ${MITOSCOPE_ROOT}/ecLegov2.pl sievegraph \
 --gv ../assembly_graph.gv \
 --diploidcov $(expr 2 \* ${covCN}) \
 --oprefix ${FASTQPREFIX}.MT.assembly \
---bam ../../${FASTQPREFIX}.MT.assembly.ref.bam
+--bam ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.ref.bam
 # FIXME: lower dicncov to 4 for SV threshold as >=2
 echo '==' $(date) '==' subpopulation script setup..
 perl ${MITOSCOPE_ROOT}/cgSupPop.pl setup \
 --assembly ${FASTQPREFIX}.MT.assembly.cn$(expr 2 \* ${covCN}).disjointcyclic.gv.overview.xls \
---vcf ../../${FASTQPREFIX}.MT.assembly.bam.raw.vcf \
+--vcf ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf \
 --dicncov 4 --subgraph 1 --rsg 1 --sample ${FASTQPREFIX} \
 --scriptPath ${MITOSCOPE_ROOT}
 #

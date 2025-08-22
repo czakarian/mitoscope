@@ -134,6 +134,7 @@ if not args.multisample:
         exit("--caller value is not recognized")
 
     # Handle multiallelics where AF field was not split // currently only handles up to 2 multiallleic variants, revisit for cases of more
+    ## also should handle for multiallelic files too
     input_df['AF'] = input_df.apply(resolve_af, axis=1)
 
     input_df = input_df.drop(columns=['FORMAT', 'SAMPLE'])

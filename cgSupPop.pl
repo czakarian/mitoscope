@@ -431,19 +431,19 @@ sub writeMapSVCall {
     printf OUTFILE "export ECLEGO_ROOT=%s\n", $G_LOCAL_DIR;
     print OUTFILE 'export REFGENOME=${ECLEGO_ROOT}/resources/MT.fasta', "\n";
     print OUTFILE 'export REFINDEX=${ECLEGO_ROOT}/resources/${MINIMAPINDEX}', "\n";
-    print OUTFILE 'export SINGULARITY_BINDPATH=${ECLEGO_ROOT}', "\n";
-    print OUTFILE 'export MINIMAP2CMD="${ECLEGO_ROOT}/singularity/minimap2_2.24.sif minimap2"', "\n";
-    print OUTFILE 'export MINIMAP2THREADS=4', "\n";
-    print OUTFILE 'export SAMTOOLSCMD="${ECLEGO_ROOT}/singularity/samtools_v1.15.1.sif samtools"', "\n";
-    print OUTFILE 'export SAMTOOLSTHREADS=4', "\n";
-    print OUTFILE 'export SNIFFLESCMD="${ECLEGO_ROOT}/singularity/sniffles_2.3.3.sif sniffles"', "\n";
-    print OUTFILE 'export SNIFFLESTHREADS=4', "\n";
+    #print OUTFILE 'export SINGULARITY_BINDPATH=${ECLEGO_ROOT}', "\n";
+    #print OUTFILE 'export MINIMAP2CMD="${ECLEGO_ROOT}/singularity/minimap2_2.24.sif minimap2"', "\n";
+    #print OUTFILE 'export MINIMAP2THREADS=4', "\n";
+    #print OUTFILE 'export SAMTOOLSCMD="${ECLEGO_ROOT}/singularity/samtools_v1.21.sif samtools"', "\n";
+    #print OUTFILE 'export SAMTOOLSTHREADS=4', "\n";
+    #print OUTFILE 'export SNIFFLESCMD="${ECLEGO_ROOT}/singularity/sniffles_2.6.2.sif sniffles"', "\n";
+    #print OUTFILE 'export SNIFFLESTHREADS=4', "\n";
     print OUTFILE "\n";
 
     print OUTFILE "# mapping\n";
     print OUTFILE 'echo $(date) Mapping ',$fastaCollection, ' against MT reference..', "\n";
     print OUTFILE '${MINIMAP2CMD} -ax ${MINIMAPPLATFORM} -t ${MINIMAP2THREADS} -L ${REFINDEX} ${FASTA} \\', "\n";
-    print OUTFILE '| ${SAMTOOLSCMD} sort -O BAM -@4 -o ${FASTA/%.fa/.bam} ; \\', "\n";
+    print OUTFILE '| ${SAMTOOLSCMD} sort -O BAM -@${SAMTOOLSTHREADS} -o ${FASTA/%.fa/.bam} ; \\', "\n";
     print OUTFILE '${SAMTOOLSCMD} index -@${SAMTOOLSTHREADS} ${FASTA/%.fa/.bam}', "\n";
     print OUTFILE "\n";
 

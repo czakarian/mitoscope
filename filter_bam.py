@@ -8,11 +8,14 @@ import argparse
 import pysam
 import re
 import os
+import matplotlib.pyplot as plt
 
 def get_args():
     parser = argparse.ArgumentParser(description="Filters out reads in bam file representative of NUMTs and fold-backs (split reads with +/- alignments).")
     parser.add_argument("-i", "--input", help="File path of input bam.", required=True)
-    parser.add_argument("-m", "--max_sc_threshold", type=int, help="Maximum unaligned softclipping allowed in a read.", required=False, default=100)
+    parser.add_argument("-o", "--output", help="Optional output prefix", required=False, default="")
+    parser.add_argument("-s", "--max_sc_threshold", type=int, help="Maximum unaligned softclipping allowed in a read.", required=False, default=200)
+    parser.add_argument("-m", "--max_meth_threshold", type=int, help="Maximum proportion of read that can be methylated, otherwise filtered as NUMT.", required=False, default=0.5)
     return parser.parse_args()
 
 args = get_args()
@@ -33,8 +36,62 @@ def get_cigar_counts(cigar):
     for count, operation in matches:
         counts[operation] += int(count)
     
-    #print(counts)
     return counts
+
+def methylated_read_portion(line, meth_prob_likelihood, min_probability=0.5, site="C-m"):
+    """
+    Calculate the proportion of a read's CpG sites that are methylated (currently just 5mC)
+    Args:
+        line (pysam record): One bam record line 
+        meth_prob_likelihood (list) : List of meth probability scores. 
+        min_probability (int): Minumum probability to determine whether CpG site is methylated
+        site (str): Name of the base modification (currently only suport 'C-m')
+    Returns:
+        int: Proportion of CpG sites that are methylated in read
+    """
+
+    base, code = site.split("-")
+
+    probs = []
+    if (base, 1, code) in line.modified_bases:
+        probs = [x[1]/255 for x in line.modified_bases[('C', 1, 'm')]]
+    elif (base, 0, code) in line.modified_bases:
+        probs = [x[1]/255 for x in line.modified_bases[('C', 0, 'm')]]
+    
+    meth_prob_likelihood.extend(probs)
+
+    if len(probs) > 0:
+        percent_read_meth = len([site for site in probs if site > min_probability])/len(probs)
+    else:
+        percent_read_meth = 0
+    
+    return percent_read_meth
+
+def methylation_plot(meth_per_read_list, meth_prob_likelihood):
+    """
+    Plot read methylation distribution to check what proportion of sites on across reads are methylated.
+    Args:
+        meth_per_read_list (list): List of read methylation levels.
+        meth_prob_likelihood (list): List of meth probability scores.
+    Returns:
+        None
+    """
+
+    plt.hist(meth_per_read_list, bins=50, color='blue')
+    plt.axvline(x=args.max_meth_threshold, color='red', linestyle='-', linewidth=2)
+    plt.xlabel('Percent of methylated CpG sites on read')
+    plt.ylabel('# of Reads')
+    plt.xlim(0,1)
+    #plt.grid(True)
+    plt.savefig(prefix + '.read_methylation.png', dpi=150)
+    plt.show()
+
+    plt.hist(meth_prob_likelihood, bins=50, color='blue')
+    plt.xlabel('Methylation Probability Likelihood')
+    plt.ylabel('# of CpG sites')
+    #plt.grid(True)
+    plt.savefig(prefix + '.read_methylation.prob_like.png', dpi=150)
+    plt.show()
 
 def is_foldback(read_parts):
     """
@@ -47,19 +104,23 @@ def is_foldback(read_parts):
     strands = {line.is_reverse for line in read_parts}
     return len(strands) > 1
 
-def is_NUMT(read_parts, max_unaligned_threshold):
+def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth_per_read_list, meth_prob_likelihood):
     """
-    Determine whether a read resembles a NUMT sequence based on level of unaligned soft-clipping across alignments.
+    Determine whether a read resembles a NUMT sequence based on level of unaligned soft-clipping across alignments as well as methylation level of the read.
     Args:
         read_parts (list): List of lines from bam (pysam) with same read name.
-        max_unaligned_threshold (int): The maximum amount of unaligned soft-clipping allowed (Default = 1000).
+        max_unaligned_threshold (int): The maximum amount of unaligned soft-clipping allowed
+        max_methylation_threshold (int): The maximum threshold a read can be methylated, otherwise considered a NUMT.
+        meth_per_read_list (list): List to append methylation level to (used to plot distribution across bam).
+        meth_prob_likelihood (list): List of meth probability scores.
     Returns:
         bool: True if resembles a NUMT sequence, otherwise False.
     """
 
+    ## 1. check unaligned softclipping levels
     total_query_lengths = []
     mapped_query_length = 0
-
+    
     for line in read_parts:
         cigar_counts = get_cigar_counts(line.cigarstring)
         total_query_lengths.append(cigar_counts['M'] + cigar_counts['I'] + cigar_counts['S'] + cigar_counts['H'])
@@ -69,36 +130,53 @@ def is_NUMT(read_parts, max_unaligned_threshold):
         print('Warning: Query lengths differ between alignments with same read name.')
 
     unaligned_bases = total_query_lengths[0] - mapped_query_length
-    #print(unaligned_bases)
-    return unaligned_bases > max_unaligned_threshold
 
-def process_read_group(read_parts, read_counts, keep_file_handle, discard_file_handle):
+    ## 2. check methylation level for read
+    meth_level = methylated_read_portion(read_parts[0], meth_prob_likelihood)
+    meth_per_read_list.append(meth_level)
+
+    if (unaligned_bases > max_unaligned_threshold) or (meth_level > max_methylation_threshold):
+        return True
+    else:
+        return False
+
+def process_read_group(read_parts, read_counts, meth_per_read_list, keep_file_handle, discard_file_handle, meth_prob_likelihood):
     """
     Process a group of reads and categorize as foldback, NUMT, or kept read.
     Args:
         read_parts (list): List of lines from bam (pysam) with same read name.
+        read_counts (dict): Dictionary of read count categories (foldback, numt, kept)
+        meth_per_read_list (list): List of read methylation levels.
+        keep_file_handle (pysam AlignmentFile): File to write kept reads to.
+        discard_file_handle (pysam AlignmentFile): File to write discarded reads to.
+        meth_prob_likelihood (list): List of meth probability scores.
     Returns:
         None
     """
     if is_foldback(read_parts):
         category, target = 'foldback', discard_file_handle
-    elif is_NUMT(read_parts, args.max_sc_threshold):
+    elif is_NUMT(read_parts, args.max_sc_threshold, args.max_meth_threshold, meth_per_read_list, meth_prob_likelihood):
         category, target = 'numt', discard_file_handle
     else:
         category, target = 'kept', keep_file_handle
 
     read_counts[category] += 1
+
     for line in read_parts:
         target.write(line)
-    #print(line.query_name)
 
 # Define output file names
+if args.output != "":
+    prefix = args.output 
+else:
+    prefix = args.input[:-4]
+
 input_bam = args.input
-input_bam_name_sorted = args.input[:-4] + ".sortedbyname.bam"
-filtered_bam = args.input[:-4] + ".filtered.bam"
-filtered_bam_name_sorted = args.input[:-4] + ".filtered.sortedbyname.bam"
-discarded_bam = args.input[:-4] + ".discardReads.bam"
-discarded_bam_name_sorted = args.input[:-4] + ".discardReads.sortedbyname.bam"
+input_bam_name_sorted = prefix + ".sortedbyname.bam"
+filtered_bam = prefix + ".filtered.bam"
+filtered_bam_name_sorted = prefix + ".filtered.sortedbyname.bam"
+discarded_bam = prefix + ".discardReads.bam"
+discarded_bam_name_sorted = prefix + ".discardReads.sortedbyname.bam"
 
 # Perform sorting by name
 pysam.sort("-n", "-o", input_bam_name_sorted, input_bam)
@@ -110,19 +188,24 @@ fd = pysam.AlignmentFile(discarded_bam_name_sorted, 'wb', template= fr)
 read_counts = {"foldback": 0, "numt": 0, "kept": 0}
 read_parts = []
 current_readname = None
+percent_meth_per_read = []
+meth_prob_likelihood = []
 
 for line in fr:
     if current_readname == line.query_name:
         read_parts.append(line)
     else:
         if read_parts:  # Process the previous group
-            process_read_group(read_parts, read_counts, fw, fd)
+            process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood)
         read_parts = [line]
         current_readname = line.query_name
 
 # Process the final group
 if read_parts:
-    process_read_group(read_parts, read_counts, fw, fd)
+    process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood)
+
+## plot distribution of read methylation
+methylation_plot(percent_meth_per_read, meth_prob_likelihood)
 
 ## close read/write files
 fr.close()
