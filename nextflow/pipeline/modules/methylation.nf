@@ -2,8 +2,7 @@ process METH_FREQ {
 
     publishDir "${params.outdir}/methylation", mode: 'symlink'
     container params.minimod
-
-    tag "${params.sample_id}"
+    tag params.sample_id
 
     input:
     tuple path(input_bam), path(input_bam_index)
@@ -20,15 +19,14 @@ process METH_FREQ {
     minimod freq -t ${task.cpus} -m 0.5 -o ${input_bam.getBaseName()}.minimod.tsv ${mt_ref} ${input_bam}
     sort -k2 -n ${input_bam.getBaseName()}.minimod.tsv -o ${input_bam.getBaseName()}.minimod.tsv
     tail +2 ${input_bam.getBaseName()}.minimod.tsv | cut -f 1-3,7  > "${input_bam.getBaseName()}.minimod.bedGraph"
-
     """
 }
 
 process METH_PLOT {
 
     publishDir "${params.outdir}/methylation", mode: 'symlink'
-
-    tag "${params.sample_id}"
+    container params.mitoscope
+    tag params.sample_id
 
     input:
     path meth_freq_tsv
@@ -43,8 +41,5 @@ process METH_PLOT {
     set -euo pipefail
 
     qc_plots.py --plot methylation --input ${meth_freq_tsv} --outprefix ${meth_freq_tsv.getBaseName()}
-
     """
-
-
 }

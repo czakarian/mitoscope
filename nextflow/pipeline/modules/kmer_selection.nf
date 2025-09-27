@@ -1,9 +1,8 @@
 process KMER_SELECTION {
 
-    publishDir "${params.outdir}", mode: 'symlink'
+    publishDir params.outdir, mode: 'symlink'
     container params.kmctools
-
-    tag "${params.sample_id}"
+    tag params.sample_id
 
     input:
     path fastq_file

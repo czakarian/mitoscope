@@ -1,9 +1,8 @@
 process FILTER_NUMTS {
 
     publishDir "${params.outdir}/alignments", mode: 'symlink'
-    // container params.samtools
-
-    tag "${params.sample_id}"
+    container params.mitoscope
+    tag params.sample_id
 
     input:
     tuple path(bam_file), path(bam_file_index)
@@ -11,7 +10,6 @@ process FILTER_NUMTS {
     output:
     path("${bam_file.baseName}.filtered.bam"), emit: mt_filtered_bam
     path("${bam_file.baseName}.discardReads.bam"), emit: mt_numt_bam
-
 
     script:
     """

@@ -1,8 +1,7 @@
 process BAM_TO_FASTQ {
 
     container params.samtools
-
-    tag "${params.sample_id}"
+    tag params.sample_id
 
     input:
     path bam_file
@@ -21,8 +20,7 @@ process BAM_TO_FASTQ {
 process CRAM_TO_FASTQ {
 
     container params.samtools
-
-    tag "${params.sample_id}"
+    tag params.sample_id
 
     input:
     path cram_file
@@ -44,8 +42,7 @@ process COMPRESS_FASTQ {
 
     publishDir "${params.outdir}", mode: 'symlink'
     container params.pigz
-
-    tag "${params.sample_id}"
+    tag params.sample_id
 
     input:
     path input_fastq
