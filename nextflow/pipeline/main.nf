@@ -11,7 +11,7 @@
 
 nextflow.enable.dsl = 2
 
-include { BAM_TO_FASTQ; CRAM_TO_FASTQ; COMPRESS_FASTQ } from './modules/format_inputs.nf'
+include { ALIGNED_BAM_TO_FASTQ; ALIGNED_CRAM_TO_FASTQ; UNALIGNED_BAM_TO_FASTQ; UNALIGNED_CRAM_TO_FASTQ; COMPRESS_FASTQ } from './modules/format_inputs.nf'
 include { KMER_SELECTION } from './modules/kmer_selection.nf'
 include { ALIGN_TO_REF; ALIGN_TO_ASSEMBLY; 
           SAMTOOLS_SAM_TO_BAM as SAMTOOLS_SAM_TO_BAM; 
@@ -33,13 +33,15 @@ workflow {
 
     // Check for required parameters
     if (!params.inputfile || !params.sample_id || !params.outdir || !params.platform) {
-        error "Missing required params. Usage: --inputfile --sample_id --outdir --platform"
+        error "Missing one of required parameters: inputfile, sample_id, outdir, platform"
     }
     if (!file(params.inputfile).exists()) error "Input file does not exist: ${params.inputfile}"
 
     def bam_ch = null
     def cram_ch = null
-    def fastq_ch = null
+    def bam_index_ch = null
+    def cram_index_ch = null
+    def fastq_ch = null    
 
     if (params.inputfile.endsWith('.bam')) {
         bam_ch = Channel.fromPath(params.inputfile)
@@ -51,22 +53,31 @@ workflow {
         error "Unsupported input format: ${params.inputfile}, must be .bam, .cram, .fastq, or .fastq.gz"
     }
 
+    // check that aligned bam or cram has existing index file
+    if (params.is_aligned) {
+        if (fastq_ch) {
+            error "Fastq provided but `is_aligned = true`. Please set to false if not aligned bam or cram."
+        } else if (bam_ch && file(params.inputfile + ".bai").exists()) {
+            bam_index_ch = Channel.fromPath(params.inputfile + ".bai")
+        } else if (cram_ch && file(params.inputfile + ".crai").exists()) {
+            cram_index_ch = Channel.fromPath(params.inputfile + ".crai")
+        } else {
+            error "Bam or cram is missing index file. Make sure .bai or .crai file exists."
+        }
+    }
+
     // check if cram input file that ref file is provided 
     if (cram_ch) {
         if (!params.reference) {
             error "Missing genome reference fasta (--reference) to accompany .cram input"
-        }
-        else if (!file(params.reference).exists()) {
+        } else if (!file(params.reference).exists()) {
             error "Genome reference fasta file does not exist: ${params.reference}"
-        }
-        else {
+        } else {
             ref_ch = Channel.fromPath(params.reference)
         }
-    }
-    else {
+    } else {
         ref_ch = null
     }
-
 
     platform_ch = Channel.value(params.platform)
     sample_id_ch = Channel.value(params.sample_id)
@@ -89,16 +100,28 @@ workflow {
     def fastq_out
     def fastq_gz_out
 
-    if (bam_ch) {
-        fastq_out = BAM_TO_FASTQ(bam_ch, sample_id_ch)
-        fastq_gz_out = COMPRESS_FASTQ(fastq_out)
-    } else if (cram_ch) {
-        fastq_out = CRAM_TO_FASTQ(cram_ch, sample_id_ch, ref_ch)
-        fastq_gz_out = COMPRESS_FASTQ(fastq_out)
-    } else if (params.inputfile.endsWith('.fastq')) {
-        fastq_gz_out = COMPRESS_FASTQ(fastq_ch)
-    } else {
-        fastq_gz_out = fastq_ch
+    if (params.is_aligned) {
+        // to do: add error if no chrM contig found in bam or cram ?? instead the process
+        if (bam_ch) {
+            fastq_out = ALIGNED_BAM_TO_FASTQ(bam_ch.combine(bam_index_ch), sample_id_ch)
+            fastq_gz_out = COMPRESS_FASTQ(fastq_out)
+        } else if (cram_ch) {
+            fastq_out = ALIGNED_CRAM_TO_FASTQ(cram_ch.combine(cram_index_ch), sample_id_ch, ref_ch)
+            fastq_gz_out = COMPRESS_FASTQ(fastq_out)
+        } 
+    }
+    else {
+        if (bam_ch) {
+            fastq_out = UNALIGNED_BAM_TO_FASTQ(bam_ch, sample_id_ch)
+            fastq_gz_out = COMPRESS_FASTQ(fastq_out)
+        } else if (cram_ch) {
+            fastq_out = UNALIGNED_CRAM_TO_FASTQ(cram_ch, sample_id_ch, ref_ch)
+            fastq_gz_out = COMPRESS_FASTQ(fastq_out)
+        } else if (params.inputfile.endsWith('.fastq')) {
+            fastq_gz_out = COMPRESS_FASTQ(fastq_ch)
+        } else {
+            fastq_gz_out = fastq_ch
+        }
     }
 
     mt_fastq = KMER_SELECTION(fastq_gz_out, kmc_pre_ch, kmc_suf_ch)
