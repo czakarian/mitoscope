@@ -82,14 +82,12 @@ def plot_methylation(input, outprefix):
     plt.savefig(outprefix + '.MT_methylation_by_site.png', dpi=300)
     plt.show()
 
-    plt.figure(figsize=(15, 4))
+    plt.figure(figsize=(6, 4))
     plt.hist(df['freq'], bins=50, color='blue')
     plt.xlabel('Fraction mtDNA methylation')
     plt.ylabel('# of CpG Sites')
     plt.xlim(0,1)
-    #plt.title('')
     #plt.grid(True)
-    plt.tight_layout()
     plt.savefig(outprefix + '.MT_methylation_freq_histogram.png', dpi=300)
     plt.show()
 

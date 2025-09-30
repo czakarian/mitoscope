@@ -1,0 +1,6 @@
+inputfile: "sample1.cram" # can be bam, cram, fastq, or fastq.gz
+is_aligned: true # set to true if aligned bam or cram, otherwise false
+platform: "pb" # pb or ont
+sample_id: "sample1" # used for naming output files
+outdir: "/path/to/output/dir/result" # output directory for results
+reference: "/path/to/ref/for/cram/GRCH38.fa" # for crams only, provide path to reference used to generate. Otherwise, set to null.

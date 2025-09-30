@@ -154,4 +154,3 @@ merged_df.to_csv(f"{input_prefix}.annotated.txt", sep='\t', index=False)
 if not args.multisample:
     fig = create_heteroplasmy_plot(merged_df)
     fig.savefig(f"{input_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
-

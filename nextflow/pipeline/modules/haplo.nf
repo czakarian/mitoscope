@@ -14,7 +14,7 @@ process HAPLOGREP {
     set -euo pipefail
 
     haplogrep3 classify --extend-report --write-qc \
-    --tree phylotree-rcrs@17.2 \
+    --tree ${params.haplogrep_tree} \
     --input ${mutserve_vcf} \
     --output ${mutserve_vcf.getBaseName(2)}.haplogrep.txt
     """

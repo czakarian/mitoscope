@@ -13,20 +13,28 @@ nextflow.enable.dsl = 2
 
 include { ALIGNED_BAM_TO_FASTQ; ALIGNED_CRAM_TO_FASTQ; UNALIGNED_BAM_TO_FASTQ; UNALIGNED_CRAM_TO_FASTQ; COMPRESS_FASTQ } from './modules/format_inputs.nf'
 include { KMER_SELECTION } from './modules/kmer_selection.nf'
-include { ALIGN_TO_REF; ALIGN_TO_ASSEMBLY; 
-          SAMTOOLS_SAM_TO_BAM as SAMTOOLS_SAM_TO_BAM; 
-          SAMTOOLS_SAM_TO_BAM as SAMTOOLS_SAM_TO_BAM_ASSEMBLY;
-          SAMTOOLS_INDEX as SAMTOOLS_INDEX; 
-          SAMTOOLS_INDEX as SAMTOOLS_INDEX_FILTERED; 
-          SAMTOOLS_INDEX as SAMTOOLS_INDEX_NUMT; 
-          SAMTOOLS_INDEX as SAMTOOLS_INDEX_ASSEMBLY} from './modules/alignment.nf'
+include { ALIGN_TO_REF; 
+          ALIGN_TO_ASSEMBLY as ALIGN_TO_ASSEMBLY; 
+          ALIGN_TO_ASSEMBLY as ALIGN_TO_ROTATED_ASSEMBLY; 
+          ALIGN_ASSEMBLY_TO_REF as ALIGN_ASSEMBLY_TO_REF;
+          ALIGN_ASSEMBLY_TO_REF as ALIGN_ROTATED_ASSEMBLY_TO_REF;
+          SAM_TO_BAM as SAM_TO_BAM; 
+          SAM_TO_BAM as SAM_TO_BAM_ASSEMBLY;
+          SAM_TO_BAM as SAM_TO_BAM_ROTATED_ASSEMBLY;
+          SAM_TO_BAM as SAM_TO_BAM_ASSEMBLY_TO_REF;
+          SAM_TO_BAM as SAM_TO_BAM_ROTATED_ASSEMBLY_TO_REF;} from './modules/alignment.nf'
 include { FILTER_NUMTS } from './modules/filtration.nf'
-include { MT_ASSEMBLY; BAM_TO_FASTQ_FOR_ASSEMBLY} from './modules/assembly.nf'
+include { MT_ASSEMBLY; BAM_TO_FASTQ_FOR_ASSEMBLY; CHECK_CIRCULAR_GENOME; ROTATE_ASSEMBLY} from './modules/assembly.nf'
 include { METH_FREQ; METH_PLOT} from './modules/methylation.nf'
 include { MT_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; READ_LENGTH_PLOT} from './modules/qc.nf'
 include { VARIANT_CALLS_BALDUR; NORMALIZE_BALDUR_VCF; ANNOTATE_BALDUR_INDELS; ANNOTATE_BALDUR_SNVS} from './modules/variant_calling.nf'
 include { VARIANT_CALLS_MUTSERVE; NORMALIZE_MUTSERVE_VCF; ANNOTATE_MUTSERVE_VCF} from './modules/variant_calling.nf'
-include { VARIANT_CALLS_SNIFFLES; FILTER_SNIFFLES_VCF_MINSUPPORT} from './modules/variant_calling.nf'
+include { VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES; 
+          VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY;
+          VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF;
+          FILTER_SNIFFLES_VCF_MINSUPPORT as FILTER_SNIFFLES_VCF_MINSUPPORT;
+          FILTER_SNIFFLES_VCF_MINSUPPORT as FILTER_SNIFFLES_VCF_MINSUPPORT_ASSEMBLY;
+          FILTER_SNIFFLES_VCF_MINSUPPORT as FILTER_SNIFFLES_VCF_MINSUPPORT_ASSEMBLY_TO_REF} from './modules/variant_calling.nf'
 include { HAPLOGREP; HAPLOCHECK} from './modules/haplo.nf'
 
 workflow {
@@ -125,16 +133,26 @@ workflow {
     }
 
     mt_fastq = KMER_SELECTION(fastq_gz_out, kmc_pre_ch, kmc_suf_ch)
-    mt_align_bam = ALIGN_TO_REF(mt_fastq, platform_ch, minimap_index_ch) | SAMTOOLS_SAM_TO_BAM | SAMTOOLS_INDEX
+    mt_align_bam = ALIGN_TO_REF(mt_fastq, platform_ch, minimap_index_ch) | SAM_TO_BAM 
     
+    // Generate filtered bam without NUMTs and discarded NUMT bam
     FILTER_NUMTS(mt_align_bam)
-    mt_filtered_bam = SAMTOOLS_INDEX_FILTERED(FILTER_NUMTS.out.mt_filtered_bam)
-    mt_numt_bam = SAMTOOLS_INDEX_NUMT(FILTER_NUMTS.out.mt_numt_bam)
+    mt_filtered_bam = FILTER_NUMTS.out.mt_filtered_bam
 
     // Assembly
     mt_filtered_fastq = BAM_TO_FASTQ_FOR_ASSEMBLY(mt_filtered_bam)
     assembly_dir = MT_ASSEMBLY(mt_filtered_fastq, platform_ch)
-    ALIGN_TO_ASSEMBLY(mt_filtered_fastq, platform_ch, assembly_dir) | SAMTOOLS_SAM_TO_BAM_ASSEMBLY | SAMTOOLS_INDEX_ASSEMBLY
+    assembly_fasta = assembly_dir.map { dir -> file("${dir}/assembly.fasta") }
+    mt_align_assembly_bam = ALIGN_TO_ASSEMBLY(mt_filtered_fastq, platform_ch, assembly_fasta) | SAM_TO_BAM_ASSEMBLY 
+    mt_assembly_to_ref_bam = ALIGN_ASSEMBLY_TO_REF(assembly_fasta, minimap_index_ch, platform_ch, sample_id_ch) | SAM_TO_BAM_ASSEMBLY_TO_REF
+
+    // Rotate assembly to match reference coordinates and realign MT reads to it
+    rotated_assembly_fasta = ROTATE_ASSEMBLY(assembly_fasta, mt_assembly_to_ref_bam)
+    ALIGN_ROTATED_ASSEMBLY_TO_REF(rotated_assembly_fasta, minimap_index_ch, platform_ch, sample_id_ch) | SAM_TO_BAM_ROTATED_ASSEMBLY_TO_REF
+    ALIGN_TO_ROTATED_ASSEMBLY(mt_filtered_fastq, platform_ch, rotated_assembly_fasta) | SAM_TO_BAM_ROTATED_ASSEMBLY
+
+    // Circular genome subpopulations
+    //CHECK_CIRCULAR_GENOME(assembly_dir, sample_id_ch, mt_assembly_to_ref_bam)
 
     // Methylation
     METH_FREQ(mt_filtered_bam, mt_ref_ch)
@@ -166,7 +184,11 @@ workflow {
     // SV Calling
     VARIANT_CALLS_SNIFFLES(mt_filtered_bam)
     FILTER_SNIFFLES_VCF_MINSUPPORT(VARIANT_CALLS_SNIFFLES.out.sniffles_vcf)
+    
+    VARIANT_CALLS_SNIFFLES_ASSEMBLY(mt_align_assembly_bam)
+    FILTER_SNIFFLES_VCF_MINSUPPORT_ASSEMBLY(VARIANT_CALLS_SNIFFLES_ASSEMBLY.out.sniffles_vcf)
 
+    VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(mt_assembly_to_ref_bam)
 
 }
 

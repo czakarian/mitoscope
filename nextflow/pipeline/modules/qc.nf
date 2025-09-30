@@ -5,8 +5,7 @@ process MT_COVERAGE {
 
     publishDir "${params.outdir}/qc/coverage", mode: 'symlink'
     container params.mosdepth
-
-    tag "${params.sample_id}"
+    tag params.sample_id
 
     input:
     tuple path(input_bam), path(input_bam_index)
@@ -28,8 +27,7 @@ process MT_READ_LENGTH {
 
     publishDir "${params.outdir}/qc/read_length", mode: 'symlink'
     container params.samtools
-
-    tag "${params.sample_id}"
+    tag params.sample_id
 
     input:
     tuple path(input_bam), path(input_bam_index)
@@ -49,8 +47,8 @@ process MT_READ_LENGTH {
 process COVERAGE_PLOT {
 
     publishDir "${params.outdir}/qc/coverage", mode: 'symlink'
-    container params.mitoscope
-    tag "${params.sample_id}"
+    container params.python
+    tag params.sample_id
 
     input:
     path per_base_bed
@@ -71,8 +69,8 @@ process COVERAGE_PLOT {
 process READ_LENGTH_PLOT {
 
     publishDir "${params.outdir}/qc/read_length", mode: 'symlink'
-    container params.mitoscope
-    tag "${params.sample_id}"
+    container params.python
+    tag params.sample_id
 
     input:
     path read_length_file

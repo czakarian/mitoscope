@@ -17,9 +17,12 @@ process VARIANT_CALLS_BALDUR {
     """
     set -euo pipefail
 
-    # baldur variant calls (SNV, small indel, large deletion)
-    baldur -n ${sample_id} -l debug --output-deletions -T ${mt_ref} -o "${input_bam.getBaseName()}.baldur" ${input_bam}
-
+    baldur -l debug \
+    --output-deletions \
+    -T ${mt_ref} \
+    -n ${sample_id} \
+    -o "${input_bam.getBaseName()}.baldur" \
+    ${input_bam}
     """
 }
 
@@ -195,8 +198,8 @@ process VARIANT_CALLS_SNIFFLES {
     """
     set -euo pipefail
 
-    sniffles --qc-output-all --allow-overwrite \
-    --minsupport 2 \
+    sniffles --qc-output-all \
+    --minsupport ${params.min_sv_support} \
     --input ${input_bam} \
     --vcf ${input_bam.getBaseName()}.sniffles.vcf
     """
@@ -213,13 +216,13 @@ process FILTER_SNIFFLES_VCF_MINSUPPORT {
     path sniffles_vcf
 
     output:
-    path("${sniffles_vcf.getBaseName()}.ge2.vcf")
+    path("${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.vcf")
 
     script:
     """
     set -euo pipefail
 
-    bcftools filter -i "SUPPORT>=2" ${sniffles_vcf} > ${sniffles_vcf.getBaseName()}.ge2.vcf
+    bcftools filter -i "SUPPORT>=${params.min_sv_support}" ${sniffles_vcf} > ${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.vcf
 
     """
 }
