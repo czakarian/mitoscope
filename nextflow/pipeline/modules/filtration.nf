@@ -1,17 +1,17 @@
 process FILTER_NUMTS {
 
-    publishDir path: "${params.outdir}/alignments", pattern: "*.{bam,bai}", mode: 'symlink'
-    publishDir path: "${params.outdir}/methylation", pattern: "*.png", mode: 'symlink'
-    publishDir path: "${params.outdir}/logs", pattern: "*.log", mode: 'symlink'
+    publishDir path: "${params.outdir}/${sample_id}/alignments/to_ref", pattern: "*.{bam,bai}", mode: 'symlink'
+    publishDir path: "${params.outdir}/${sample_id}/methylation", pattern: "*.png", mode: 'symlink'
+    publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'symlink'
     container params.python
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    tuple path(bam_file), path(bam_file_index)
+    tuple val(sample_id),path(bam_file), path(bam_file_index)
 
     output:
-    tuple path("${bam_file.baseName}.filtered.bam"),path("${bam_file.baseName}.filtered.bam.bai"), emit: mt_filtered_bam
-    tuple path("${bam_file.baseName}.discardReads.bam"),path("${bam_file.baseName}.discardReads.bam.bai"), emit: mt_numt_bam
+    tuple val(sample_id), path("${bam_file.baseName}.filtered.bam"), path("${bam_file.baseName}.filtered.bam.bai"), emit: filtered_bam
+    tuple val(sample_id), path("${bam_file.baseName}.discardReads.bam"), path("${bam_file.baseName}.discardReads.bam.bai"), emit: numt_bam
     path("${bam_file.baseName}.methylation_per_read.png")
     path("${bam_file.baseName}.methylation_likelihood.png")
     path("filter_bam.log")
@@ -27,6 +27,26 @@ process FILTER_NUMTS {
     filter_bam.py -i ${bam_file} \
     --max_sc_threshold ${params.max_sc_threshold} \
     --max_meth_threshold ${params.max_meth_threshold_per_read} \
-    > filter_bam.log 2>&1
+    > filter_bam.log
+    """
+}
+
+process FILTERED_BAM_TO_FASTQ {
+
+    publishDir "${params.outdir}/${sample_id}", mode: 'symlink'
+    container params.samtools
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(input_bam), path(input_bam_index)
+
+    output:
+    tuple val(sample_id), path("${input_bam.getBaseName()}.fastq.gz")
+
+    script:
+    """
+    set -euo pipefail
+
+    samtools fastq -T MM,ML -@ ${task.cpus} -0 ${input_bam.getBaseName()}.fastq.gz ${input_bam}
     """
 }

@@ -18,15 +18,22 @@ aligned_assembly_bam = args.bam
 assembly_fasta = args.assembly
 reference_start_position = 0  # 0-based in pysam, corresponds to position 1 in SAM
 rotation_point = None
+reverse_strand = False
 
 # Open BAM
 bam = pysam.AlignmentFile(aligned_assembly_bam, "rb")
 
 for read in bam.fetch():
     if read.reference_start == reference_start_position and not read.is_unmapped:
-        rotation_point = read.query_alignment_start
+        reverse_strand = read.is_reverse
+        if reverse_strand:
+            rotation_point = read.query_alignment_end - read.query_alignment_start
+        else:
+            rotation_point = read.query_alignment_start
+
         print(f"Contig: {read.query_name}")
         print(f"Rotation point: {rotation_point}")
+        print(f"Strand: {'reverse' if reverse_strand else 'forward'}")
         break
 
 if rotation_point is None:
@@ -35,8 +42,17 @@ else:
     record = SeqIO.read(assembly_fasta, "fasta")
     seq = str(record.seq)
 
-    rotated_seq = seq[rotation_point:] + seq[:rotation_point]
+    # If reverse strand, reverse complement and 
+    if reverse_strand:
+        rotated_seq = str(Seq(seq[rotation_point:] + seq[:rotation_point]).reverse_complement())
+    else:
+        rotated_seq = seq[rotation_point:] + seq[:rotation_point]
 
-    rotated_record = SeqRecord(Seq(rotated_seq), id=record.id + "_rotated")
-    SeqIO.write(rotated_record, assembly_fasta[:-6] + "_rotated.fasta", "fasta")
+
+    rotated_record = SeqRecord(Seq(rotated_seq), 
+                               id=record.id + "_rotated", 
+                               description="")
+    
+    out_fasta = assembly_fasta.rsplit(".",1)[0] + "_rotated.fasta"
+    SeqIO.write(rotated_record, out_fasta, "fasta")
 

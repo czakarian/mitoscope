@@ -1,14 +1,13 @@
 process ALIGNED_BAM_TO_FASTQ {
     // for aligned bams, pull reads from chrM before running kmer selection 
     container params.samtools
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    tuple path(bam_file), path(bam_file_index)
-    val sample_id
+    tuple val(sample_id), path(bam_file), path(bam_file_index)
 
     output:
-    path "${sample_id}.fastq"
+    tuple val(sample_id), path("${sample_id}.fastq")
 
     script:
     """
@@ -20,14 +19,13 @@ process ALIGNED_BAM_TO_FASTQ {
 process UNALIGNED_BAM_TO_FASTQ {
     // for unaligned bams, convert full bam to fastq then run kmer selection
     container params.samtools
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path bam_file
-    val sample_id
+    tuple val(sample_id), path(bam_file), null
 
     output:
-    path "${sample_id}.fastq"
+    tuple val(sample_id), path("${sample_id}.fastq")
 
     script:
     """
@@ -39,15 +37,14 @@ process UNALIGNED_BAM_TO_FASTQ {
 process ALIGNED_CRAM_TO_FASTQ {
 
     container params.samtools
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    tuple path(cram_file), path(cram_file_index)
-    val sample_id
+    tuple val(sample_id), path(cram_file), path(cram_file_index)
     path ref
 
     output:
-    path("${sample_id}.fastq")
+    tuple val(sample_id), path("${sample_id}.fastq")
 
     script:
     """
@@ -59,15 +56,14 @@ process ALIGNED_CRAM_TO_FASTQ {
 process UNALIGNED_CRAM_TO_FASTQ {
 
     container params.samtools
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path cram_file
-    val sample_id
+    tuple val(sample_id), path(cram_file), null
     path ref
 
     output:
-    path("${sample_id}.fastq")
+    tuple val(sample_id), path("${sample_id}.fastq")
 
     script:
     """
@@ -78,15 +74,15 @@ process UNALIGNED_CRAM_TO_FASTQ {
 
 process COMPRESS_FASTQ {
 
-    publishDir "${params.outdir}", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}", mode: 'symlink'
     container params.pigz
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path input_fastq
+    tuple val(sample_id), path(input_fastq)
 
     output:
-    path "${input_fastq}.gz"
+    tuple val(sample_id), path("${input_fastq}.gz")
 
     script:
     """

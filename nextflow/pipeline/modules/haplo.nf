@@ -1,10 +1,10 @@
 process HAPLOGREP {
-    publishDir "${params.outdir}/qc/haplogroup", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/haplogroup", mode: 'symlink'
     container params.haplogrep
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path mutserve_vcf
+    tuple val(sample_id), path(mutserve_vcf)
 
     output:
     path("${mutserve_vcf.getBaseName(2)}.haplogrep.*")
@@ -22,12 +22,12 @@ process HAPLOGREP {
 }
 
 process HAPLOCHECK {
-    publishDir "${params.outdir}/qc/haplogroup", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/haplogroup", mode: 'symlink'
     container params.haplocheck
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path mutserve_vcf
+    tuple val(sample_id), path(mutserve_vcf)
 
     output:
     path("${mutserve_vcf.getBaseName(2)}.haplocheck.*")

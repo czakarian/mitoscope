@@ -1,17 +1,17 @@
 process VARIANT_CALLS_BALDUR {
 
-    publishDir "${params.outdir}/variants/baldur", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'symlink'
     container params.baldur
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    tuple path(input_bam), path(input_bam_index)
-    path mt_ref
-    val sample_id
+    tuple val(sample_id), path(input_bam), path(input_bam_index)
+    tuple path(mt_ref), path(mt_ref_index)
 
     output:
-    path("${input_bam.getBaseName()}.baldur.vcf.gz"), emit: baldur_vcf
-    path("${input_bam.getBaseName()}.baldur_del.txt"), emit: baldur_del_file
+    tuple val(sample_id), path("${input_bam.getBaseName()}.baldur.vcf.gz"), emit: vcf
+    tuple val(sample_id), path("${input_bam.getBaseName()}.baldur_del.txt"), emit: dels
 
     script:
     """
@@ -28,24 +28,24 @@ process VARIANT_CALLS_BALDUR {
 
 process NORMALIZE_BALDUR_VCF {
 
-    publishDir "${params.outdir}/variants/baldur", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'symlink'
     container params.bcftools
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path baldur_vcf
-    path mt_ref
+    tuple val(sample_id), path(baldur_vcf)
 
     output:
-    tuple path("${baldur_vcf.getBaseName(2)}.norm.vcf.gz"),path("${baldur_vcf.getBaseName(2)}.norm.vcf.gz.tbi"), emit: baldur_norm_vcf
-    tuple path("${baldur_vcf.getBaseName(2)}.norm.indels.vcf.gz"),path("${baldur_vcf.getBaseName(2)}.norm.indels.vcf.gz.tbi"), emit: baldur_norm_indels_vcf
-    tuple path("${baldur_vcf.getBaseName(2)}.norm.snvs.vcf.gz"),path("${baldur_vcf.getBaseName(2)}.norm.snvs.vcf.gz.tbi"), emit: baldur_norm_snvs_vcf
+    tuple val(sample_id), path("${baldur_vcf.getBaseName(2)}.norm.vcf.gz"),path("${baldur_vcf.getBaseName(2)}.norm.vcf.gz.tbi"), emit: norm_vcf
+    tuple val(sample_id), path("${baldur_vcf.getBaseName(2)}.norm.indels.vcf.gz"),path("${baldur_vcf.getBaseName(2)}.norm.indels.vcf.gz.tbi"), emit: norm_indels_vcf
+    tuple val(sample_id), path("${baldur_vcf.getBaseName(2)}.norm.snvs.vcf.gz"),path("${baldur_vcf.getBaseName(2)}.norm.snvs.vcf.gz.tbi"), emit: norm_snvs_vcf
 
     script:
     """
     set -euo pipefail
 
-    bcftools norm --multiallelics -both ${baldur_vcf} | bcftools norm --atomize | bcftools view -f PASS -Oz -o ${baldur_vcf.getBaseName(2)}.norm.vcf.gz 
+    bcftools norm --multiallelics -both ${baldur_vcf} | bcftools norm --atomize --atom-overlaps . | bcftools view -f PASS -Oz -o ${baldur_vcf.getBaseName(2)}.norm.vcf.gz 
     bcftools index --tbi ${baldur_vcf.getBaseName(2)}.norm.vcf.gz  
 
     bcftools view --types indels ${baldur_vcf.getBaseName(2)}.norm.vcf.gz -Oz -o ${baldur_vcf.getBaseName(2)}.norm.indels.vcf.gz 
@@ -58,12 +58,13 @@ process NORMALIZE_BALDUR_VCF {
 
 process ANNOTATE_BALDUR_SNVS {
     
-    publishDir "${params.outdir}/variants/baldur", mode: 'symlink'
-    container params.mitoscope
-    tag params.sample_id
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'symlink'
+    container params.python
+    tag "${sample_id}"
 
     input:
-    tuple path(baldur_norm_snvs_vcf),path(baldur_norm_snvs_vcf_index)
+    tuple val(sample_id), path(baldur_norm_snvs_vcf), path(baldur_norm_snvs_vcf_index)
     path mitomap_anno_file
 
     output:
@@ -74,6 +75,10 @@ process ANNOTATE_BALDUR_SNVS {
     """
     set -euo pipefail
 
+    # set up temp cache directory for matplotlib
+    export MPLCONFIGDIR=${params.mplconfigdir}
+    mkdir -p \$MPLCONFIGDIR
+
     annotate.py \
     --input ${baldur_norm_snvs_vcf} \
     --annotations ${mitomap_anno_file} \
@@ -83,12 +88,13 @@ process ANNOTATE_BALDUR_SNVS {
 
 process ANNOTATE_BALDUR_INDELS {
     
-    publishDir "${params.outdir}/variants/baldur", mode: 'symlink'
-    container params.mitoscope
-    tag params.sample_id
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'symlink'
+    container params.python
+    tag "${sample_id}"
 
     input:
-    tuple path(baldur_norm_indels_vcf), path(baldur_norm_indels_vcf_index)
+    tuple val(sample_id), path(baldur_norm_indels_vcf), path(baldur_norm_indels_vcf_index)
     path mitomap_anno_file
 
     output:
@@ -98,6 +104,10 @@ process ANNOTATE_BALDUR_INDELS {
     script:
     """
     set -euo pipefail
+    
+    # set up temp cache directory for matplotlib
+    export MPLCONFIGDIR=${params.mplconfigdir}
+    mkdir -p \$MPLCONFIGDIR
 
     annotate.py \
     --input ${baldur_norm_indels_vcf} \
@@ -108,17 +118,18 @@ process ANNOTATE_BALDUR_INDELS {
 
 process VARIANT_CALLS_MUTSERVE {
 
-    publishDir "${params.outdir}/variants/mutserve", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_assembly", pattern: "*filtered.assembly_rotated.mutserve*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_ref", pattern: "*filtered.mutserve*", mode: 'symlink'
     container params.mutserve
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    tuple path(input_bam), path(input_bam_index)
-    path mt_ref
-    val sample_id
+    tuple val(sample_id), path(input_bam), path(input_bam_index)
+    tuple path(mt_ref), path(mt_ref_index)
+    val contig_name
 
     output:
-    path("${input_bam.getBaseName()}.mutserve.vcf.gz"), emit: mutserve_vcf
+    tuple val(sample_id), path("${input_bam.getBaseName()}.mutserve.vcf.gz"), emit: vcf
 
     script:
     """
@@ -127,6 +138,7 @@ process VARIANT_CALLS_MUTSERVE {
     mutserve call ${input_bam} \
     --output ${input_bam.getBaseName()}.mutserve.vcf.gz \
     --reference ${mt_ref} \
+    --contig-name ${contig_name} \
     --threads ${task.cpus} --no-ansi
 
     """
@@ -134,16 +146,18 @@ process VARIANT_CALLS_MUTSERVE {
 
 process NORMALIZE_MUTSERVE_VCF {
     
-    publishDir "${params.outdir}/variants/mutserve", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_assembly", pattern: "*filtered.assembly_rotated.mutserve*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_ref", pattern: "*filtered.mutserve*", mode: 'symlink'
     container params.bcftools
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path mutserve_vcf
-    path mt_ref
+    tuple val(sample_id), path(mutserve_vcf)
 
     output:
-    tuple path("${mutserve_vcf.getBaseName(2)}.norm.vcf.gz"),path("${mutserve_vcf.getBaseName(2)}.norm.vcf.gz.tbi"), emit: mutserve_norm_vcf
+    tuple val(sample_id), 
+        path("${mutserve_vcf.getBaseName(2)}.norm.vcf.gz"), 
+        path("${mutserve_vcf.getBaseName(2)}.norm.vcf.gz.tbi"), emit: norm_vcf
 
     script:
     """
@@ -157,12 +171,13 @@ process NORMALIZE_MUTSERVE_VCF {
 
 process ANNOTATE_MUTSERVE_VCF {
     
-    publishDir "${params.outdir}/variants/mutserve", mode: 'symlink'
-    container params.mitoscope
-    tag params.sample_id
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_assembly", pattern: "*filtered.assembly_rotated.mutserve*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_ref", pattern: "*filtered.mutserve*", mode: 'symlink'
+    container params.python
+    tag "${sample_id}"
 
     input:
-    tuple path(mutserve_norm_vcf), path(mutserve_norm_vcf_index)
+    tuple val(sample_id), path(mutserve_norm_vcf), path(mutserve_norm_vcf_index)
     path mitomap_anno_file
 
     output:
@@ -172,6 +187,10 @@ process ANNOTATE_MUTSERVE_VCF {
     script:
     """
     set -euo pipefail
+
+    # set up temp cache directory for matplotlib
+    export MPLCONFIGDIR=${params.mplconfigdir}
+    mkdir -p \$MPLCONFIGDIR
 
     annotate.py \
     --input ${mutserve_norm_vcf} \
@@ -184,15 +203,17 @@ process ANNOTATE_MUTSERVE_VCF {
 
 process VARIANT_CALLS_SNIFFLES {
 
-    publishDir "${params.outdir}/variants/sniffles", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_assembly", pattern: "*filtered.assembly_rotated.sniffles*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_ref", pattern: "*filtered.sniffles*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/assembly_to_ref", pattern: "*assembly.ref.sniffles*", mode: 'symlink'
     container params.sniffles
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    tuple path(input_bam), path(input_bam_index)
+    tuple val(sample_id), path(input_bam), path(input_bam_index)
 
     output:
-    path("${input_bam.getBaseName()}.sniffles.vcf"), emit: sniffles_vcf
+    tuple val(sample_id), path("${input_bam.getBaseName()}.sniffles.vcf"), emit: vcf
 
     script:
     """
@@ -207,16 +228,17 @@ process VARIANT_CALLS_SNIFFLES {
 
 
 process FILTER_SNIFFLES_VCF_MINSUPPORT {
-
-    publishDir "${params.outdir}/variants/sniffles", mode: 'symlink'
+    
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_assembly", pattern: "*filtered.assembly_rotated.sniffles*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_ref", pattern: "*filtered.sniffles*", mode: 'symlink'
     container params.bcftools
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path sniffles_vcf
+    tuple val(sample_id), path(sniffles_vcf)
 
     output:
-    path("${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.vcf")
+    tuple val(sample_id), path("${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.vcf")
 
     script:
     """

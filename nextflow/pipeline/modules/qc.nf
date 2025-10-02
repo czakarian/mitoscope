@@ -1,18 +1,15 @@
-
-
-
 process MT_COVERAGE {
 
-    publishDir "${params.outdir}/qc/coverage", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/coverage", mode: 'symlink'
     container params.mosdepth
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    tuple path(input_bam), path(input_bam_index)
+    tuple val(sample_id), path(input_bam), path(input_bam_index)
 
     output:
-    path("${input_bam.getBaseName()}.per-base.bed.gz"), emit: per_base_bed
-    path("${input_bam.getBaseName()}.mosdepth.summary.txt"), emit: mosdepth_summary
+    tuple val(sample_id), path("${input_bam.getBaseName()}.per-base.bed.gz"), emit: per_base_bed
+    tuple val(sample_id), path("${input_bam.getBaseName()}.mosdepth.summary.txt"), emit: mosdepth_summary
 
     script:
     """
@@ -25,15 +22,15 @@ process MT_COVERAGE {
 
 process MT_READ_LENGTH {
 
-    publishDir "${params.outdir}/qc/read_length", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/read_length", mode: 'symlink'
     container params.samtools
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    tuple path(input_bam), path(input_bam_index)
+    tuple val(sample_id), path(input_bam), path(input_bam_index)
 
     output:
-    path("${input_bam.getBaseName()}.read_lengths.txt"), emit: read_length_file
+    tuple val(sample_id), path("${input_bam.getBaseName()}.read_lengths.txt")
 
     script:
     """
@@ -46,12 +43,12 @@ process MT_READ_LENGTH {
 
 process COVERAGE_PLOT {
 
-    publishDir "${params.outdir}/qc/coverage", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/coverage", mode: 'symlink'
     container params.python
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path per_base_bed
+    tuple val(sample_id), path(per_base_bed)
 
     output:
     path("${per_base_bed.getBaseName(3)}.mitochondrial_coverage.png")
@@ -68,12 +65,12 @@ process COVERAGE_PLOT {
 
 process READ_LENGTH_PLOT {
 
-    publishDir "${params.outdir}/qc/read_length", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/read_length", mode: 'symlink'
     container params.python
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path read_length_file
+    tuple val(sample_id), path(read_length_file)
 
     output:
     path("${read_length_file.getBaseName(2)}.read_length_distribution.png")
@@ -83,7 +80,6 @@ process READ_LENGTH_PLOT {
     set -euo pipefail
 
     qc_plots.py --plot read_length --input ${read_length_file} --outprefix ${read_length_file.getBaseName(2)}
-
     """
 }
 

@@ -17,18 +17,32 @@ include { ALIGN_TO_REF;
           ALIGN_TO_ASSEMBLY as ALIGN_TO_ASSEMBLY; 
           ALIGN_TO_ASSEMBLY as ALIGN_TO_ROTATED_ASSEMBLY; 
           ALIGN_ASSEMBLY_TO_REF as ALIGN_ASSEMBLY_TO_REF;
-          ALIGN_ASSEMBLY_TO_REF as ALIGN_ROTATED_ASSEMBLY_TO_REF;
-          SAM_TO_BAM as SAM_TO_BAM; 
-          SAM_TO_BAM as SAM_TO_BAM_ASSEMBLY;
-          SAM_TO_BAM as SAM_TO_BAM_ROTATED_ASSEMBLY;
-          SAM_TO_BAM as SAM_TO_BAM_ASSEMBLY_TO_REF;
-          SAM_TO_BAM as SAM_TO_BAM_ROTATED_ASSEMBLY_TO_REF;} from './modules/alignment.nf'
-include { FILTER_NUMTS } from './modules/filtration.nf'
-include { MT_ASSEMBLY; BAM_TO_FASTQ_FOR_ASSEMBLY; CHECK_CIRCULAR_GENOME; ROTATE_ASSEMBLY} from './modules/assembly.nf'
+          ALIGN_ASSEMBLY_TO_REF as ALIGN_ROTATED_ASSEMBLY_TO_REF} from './modules/alignment.nf'
+        //   SAM_TO_BAM as SAM_TO_BAM; 
+        //   SAM_TO_BAM as SAM_TO_BAM_ASSEMBLY;
+        //   SAM_TO_BAM as SAM_TO_BAM_ROTATED_ASSEMBLY;
+        //   SAM_TO_BAM as SAM_TO_BAM_ASSEMBLY_TO_REF;
+        //   SAM_TO_BAM as SAM_TO_BAM_ROTATED_ASSEMBLY_TO_REF
+include { FILTER_NUMTS; FILTERED_BAM_TO_FASTQ; } from './modules/filtration.nf'
+include { MT_ASSEMBLY; ROTATE_ASSEMBLY; 
+          INDEX_ASSEMBLY as INDEX_ASSEMBLY;
+          INDEX_ASSEMBLY as INDEX_ROTATED_ASSEMBLY} from './modules/assembly.nf'
 include { METH_FREQ; METH_PLOT} from './modules/methylation.nf'
 include { MT_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; READ_LENGTH_PLOT} from './modules/qc.nf'
-include { VARIANT_CALLS_BALDUR; NORMALIZE_BALDUR_VCF; ANNOTATE_BALDUR_INDELS; ANNOTATE_BALDUR_SNVS} from './modules/variant_calling.nf'
-include { VARIANT_CALLS_MUTSERVE; NORMALIZE_MUTSERVE_VCF; ANNOTATE_MUTSERVE_VCF} from './modules/variant_calling.nf'
+include { VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR;
+          VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR_ASSEMBLY; 
+          NORMALIZE_BALDUR_VCF as NORMALIZE_BALDUR_VCF;
+          NORMALIZE_BALDUR_VCF as NORMALIZE_BALDUR_VCF_ASSEMBLY;
+          ANNOTATE_BALDUR_INDELS as ANNOTATE_BALDUR_INDELS;
+          ANNOTATE_BALDUR_INDELS as ANNOTATE_BALDUR_INDELS_ASSEMBLY;
+          ANNOTATE_BALDUR_SNVS as ANNOTATE_BALDUR_SNVS;
+          ANNOTATE_BALDUR_SNVS as ANNOTATE_BALDUR_SNVS_ASSEMBLY} from './modules/variant_calling.nf'
+include { VARIANT_CALLS_MUTSERVE as VARIANT_CALLS_MUTSERVE;
+          VARIANT_CALLS_MUTSERVE as VARIANT_CALLS_MUTSERVE_ASSEMBLY;
+          NORMALIZE_MUTSERVE_VCF as NORMALIZE_MUTSERVE_VCF;
+          NORMALIZE_MUTSERVE_VCF as NORMALIZE_MUTSERVE_VCF_ASSEMBLY;
+          ANNOTATE_MUTSERVE_VCF as ANNOTATE_MUTSERVE_VCF; 
+          ANNOTATE_MUTSERVE_VCF as ANNOTATE_MUTSERVE_VCF_ASSEMBLY} from './modules/variant_calling.nf'
 include { VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES; 
           VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY;
           VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF;
@@ -39,156 +53,155 @@ include { HAPLOGREP; HAPLOCHECK} from './modules/haplo.nf'
 
 workflow {
 
-    // Check for required parameters
-    if (!params.inputfile || !params.sample_id || !params.outdir || !params.platform) {
-        error "Missing one of required parameters: inputfile, sample_id, outdir, platform"
-    }
-    if (!file(params.inputfile).exists()) error "Input file does not exist: ${params.inputfile}"
+    // // Check for required parameters
+    // if (!params.inputfile || !params.sample_id || !params.outdir || !params.platform) {
+    //     error "Missing one of required parameters: inputfile, sample_id, outdir, platform"
+    // }
+    // if (!file(params.inputfile).exists()) error "Input file does not exist: ${params.inputfile}"
 
-    def bam_ch = null
-    def cram_ch = null
-    def bam_index_ch = null
-    def cram_index_ch = null
-    def fastq_ch = null    
+    // Set up parameters
+    Channel.fromPath(params.kmc_pre, checkIfExists: true)
+        .first()
+        .set { kmc_pre_ch }
+    
+    Channel.fromPath(params.kmc_suf, checkIfExists: true)
+        .first()
+        .set { kmc_suf_ch }
+    
+    Channel.fromPath(params.mt_ref)
+        .map { ref -> tuple(ref, file("${ref}.fai")) }
+        .first()
+        .set { mt_ref_ch }
 
-    if (params.inputfile.endsWith('.bam')) {
-        bam_ch = Channel.fromPath(params.inputfile)
-    } else if (params.inputfile.endsWith('.cram')) {
-        cram_ch = Channel.fromPath(params.inputfile)
-    } else if (params.inputfile.endsWith('.fastq') || params.inputfile.endsWith('.fastq.gz')) {
-        fastq_ch = Channel.fromPath(params.inputfile)
-    } else {
-        error "Unsupported input format: ${params.inputfile}, must be .bam, .cram, .fastq, or .fastq.gz"
-    }
-
-    // check that aligned bam or cram has existing index file
-    if (params.is_aligned) {
-        if (fastq_ch) {
-            error "Fastq provided but `is_aligned = true`. Please set to false if not aligned bam or cram."
-        } else if (bam_ch && file(params.inputfile + ".bai").exists()) {
-            bam_index_ch = Channel.fromPath(params.inputfile + ".bai")
-        } else if (cram_ch && file(params.inputfile + ".crai").exists()) {
-            cram_index_ch = Channel.fromPath(params.inputfile + ".crai")
-        } else {
-            error "Bam or cram is missing index file. Make sure .bai or .crai file exists."
-        }
-    }
-
-    // check if cram input file that ref file is provided 
-    if (cram_ch) {
-        if (!params.reference) {
-            error "Missing genome reference fasta (--reference) to accompany .cram input"
-        } else if (!file(params.reference).exists()) {
-            error "Genome reference fasta file does not exist: ${params.reference}"
-        } else {
-            ref_ch = Channel.fromPath(params.reference)
-        }
-    } else {
-        ref_ch = null
-    }
-
-    platform_ch = Channel.value(params.platform)
-    sample_id_ch = Channel.value(params.sample_id)
-
+    Channel.fromPath(params.mitomap_anno_file)
+        .first()
+        .set { mitomap_anno_file_ch }
+    
     if (params.platform == "pb") {
-        minimap_index_ch = Channel.fromPath(params.mt_mmi_hifi)
+        Channel.fromPath(params.mt_mmi_hifi, checkIfExists: true)
+            .first()
+            .set { minimap_index_ch }
     } else if (params.platform == "ont") {
-        minimap_index_ch = Channel.fromPath(params.mt_mmi_ont)
+        Channel.fromPath(params.mt_mmi_ont, checkIfExists: true)
+            .first()
+            .set { minimap_index_ch }
     } else {
         error "Invalid value for --platform. Must be 'ont' or 'pb'."
     }
 
-    // Other static parameters
-    mt_ref_ch = Channel.fromPath(params.mt_ref)
-    kmc_pre_ch = Channel.fromPath(params.kmc_pre)
-    kmc_suf_ch = Channel.fromPath(params.kmc_suf)
-    mitomap_anno_file_ch = Channel.fromPath(params.mitomap_anno_file)
-
-    // Workflow 
-    def fastq_out
-    def fastq_gz_out
+    Channel
+        .fromPath(params.samplesheet) // Path to your samplesheet
+        .splitCsv(header: true) // Split into a channel of maps, using header
+        .map { row -> 
+            def index_file  = null
+            def sample_file = file(row.sample_file)
+            // Only assign index file if aligned BAM or CRAM
+            if (params.is_aligned) {
+                if (sample_file.toString().endsWith(".bam")) {
+                    index_file = file("${sample_file}.bai")
+                } else if (sample_file.toString().endsWith(".cram")) {
+                    index_file = file("${sample_file}.crai")
+                }
+            }
+            tuple(row.sample_id, sample_file, index_file)
+    }.set { samples_ch }
 
     if (params.is_aligned) {
-        // to do: add error if no chrM contig found in bam or cram ?? instead the process
-        if (bam_ch) {
-            fastq_out = ALIGNED_BAM_TO_FASTQ(bam_ch.combine(bam_index_ch), sample_id_ch)
+        if (params.input_type == 'bam') {
+            fastq_out = ALIGNED_BAM_TO_FASTQ(samples_ch)
             fastq_gz_out = COMPRESS_FASTQ(fastq_out)
-        } else if (cram_ch) {
-            fastq_out = ALIGNED_CRAM_TO_FASTQ(cram_ch.combine(cram_index_ch), sample_id_ch, ref_ch)
+        } else if (params.input_type == 'cram') {
+            fastq_out = ALIGNED_CRAM_TO_FASTQ(samples_ch, params.reference)
             fastq_gz_out = COMPRESS_FASTQ(fastq_out)
         } 
-    }
-    else {
-        if (bam_ch) {
-            fastq_out = UNALIGNED_BAM_TO_FASTQ(bam_ch, sample_id_ch)
+    } else {
+        if (params.input_type == 'bam') {
+            fastq_out = UNALIGNED_BAM_TO_FASTQ(samples_ch)
             fastq_gz_out = COMPRESS_FASTQ(fastq_out)
-        } else if (cram_ch) {
-            fastq_out = UNALIGNED_CRAM_TO_FASTQ(cram_ch, sample_id_ch, ref_ch)
+        } else if (params.input_type == 'cram') {
+            fastq_out = UNALIGNED_CRAM_TO_FASTQ(samples_ch, params.reference)
             fastq_gz_out = COMPRESS_FASTQ(fastq_out)
-        } else if (params.inputfile.endsWith('.fastq')) {
-            fastq_gz_out = COMPRESS_FASTQ(fastq_ch)
-        } else {
-            fastq_gz_out = fastq_ch
-        }
+        } else if (params.input_type == 'fastq') {
+            fastq_gz_out = COMPRESS_FASTQ(samples_ch)
+        } else if (params.input_type == 'fastq.gz') {
+            fastq_gz_out = samples_ch
+        } 
     }
 
-    mt_fastq = KMER_SELECTION(fastq_gz_out, kmc_pre_ch, kmc_suf_ch)
-    mt_align_bam = ALIGN_TO_REF(mt_fastq, platform_ch, minimap_index_ch) | SAM_TO_BAM 
+
+    // Select MT reads via kmer selection
+    KMER_SELECTION(fastq_gz_out, kmc_pre_ch, kmc_suf_ch)
     
     // Generate filtered bam without NUMTs and discarded NUMT bam
-    FILTER_NUMTS(mt_align_bam)
-    mt_filtered_bam = FILTER_NUMTS.out.mt_filtered_bam
+    ALIGN_TO_REF(KMER_SELECTION.out, params.platform, minimap_index_ch)
+    FILTER_NUMTS(ALIGN_TO_REF.out.bam)
+    FILTERED_BAM_TO_FASTQ(FILTER_NUMTS.out.filtered_bam)
 
-    // Assembly
-    mt_filtered_fastq = BAM_TO_FASTQ_FOR_ASSEMBLY(mt_filtered_bam)
-    assembly_dir = MT_ASSEMBLY(mt_filtered_fastq, platform_ch)
-    assembly_fasta = assembly_dir.map { dir -> file("${dir}/assembly.fasta") }
-    mt_align_assembly_bam = ALIGN_TO_ASSEMBLY(mt_filtered_fastq, platform_ch, assembly_fasta) | SAM_TO_BAM_ASSEMBLY 
-    mt_assembly_to_ref_bam = ALIGN_ASSEMBLY_TO_REF(assembly_fasta, minimap_index_ch, platform_ch, sample_id_ch) | SAM_TO_BAM_ASSEMBLY_TO_REF
+    // Assemble mito
+    MT_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, params.platform)
+    INDEX_ASSEMBLY(MT_ASSEMBLY.out
+        .map { sample_id, dir -> tuple(sample_id, file("${dir}/assembly.fasta"))})
+        .set { assembly_fasta }
+
+    // Align reads to assembly and align assembly to ref
+    ALIGN_TO_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, assembly_fasta, params.platform)
+    ALIGN_ASSEMBLY_TO_REF(assembly_fasta, minimap_index_ch, params.platform)
 
     // Rotate assembly to match reference coordinates and realign MT reads to it
-    rotated_assembly_fasta = ROTATE_ASSEMBLY(assembly_fasta, mt_assembly_to_ref_bam)
-    ALIGN_ROTATED_ASSEMBLY_TO_REF(rotated_assembly_fasta, minimap_index_ch, platform_ch, sample_id_ch) | SAM_TO_BAM_ROTATED_ASSEMBLY_TO_REF
-    ALIGN_TO_ROTATED_ASSEMBLY(mt_filtered_fastq, platform_ch, rotated_assembly_fasta) | SAM_TO_BAM_ROTATED_ASSEMBLY
-
-    // Circular genome subpopulations
-    //CHECK_CIRCULAR_GENOME(assembly_dir, sample_id_ch, mt_assembly_to_ref_bam)
+    // ROTATE_ASSEMBLY(assembly_fasta, ALIGN_ASSEMBLY_TO_REF.out.bam) 
+    // INDEX_ROTATED_ASSEMBLY(ROTATE_ASSEMBLY.out.fasta).set{ rotated_assembly_fasta }
+    
+    // // Align reads to rotated assembly and align rotated assembly to ref
+    // ALIGN_TO_ROTATED_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, rotated_assembly_fasta, params.platform).set{ mt_align_rotated_assembly_bam }
+    // ALIGN_ROTATED_ASSEMBLY_TO_REF(rotated_assembly_fasta, minimap_index_ch, params.platform)
 
     // Methylation
-    METH_FREQ(mt_filtered_bam, mt_ref_ch)
+    METH_FREQ(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
     METH_PLOT(METH_FREQ.out.minimod_tsv)
 
-    // QC - coverage 
-    MT_COVERAGE(mt_filtered_bam)
+    // QC - coverage and read length
+    MT_COVERAGE(FILTER_NUMTS.out.filtered_bam)
     COVERAGE_PLOT(MT_COVERAGE.out.per_base_bed)
+    MT_READ_LENGTH(FILTER_NUMTS.out.filtered_bam)
+    READ_LENGTH_PLOT(MT_READ_LENGTH.out)
 
-    // QC - ead length dist
-    MT_READ_LENGTH(mt_filtered_bam)
-    READ_LENGTH_PLOT(MT_READ_LENGTH.out.read_length_file)
+    // SNV/indel/del variant calling (baldur) on reference
+    VARIANT_CALLS_BALDUR(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
+    NORMALIZE_BALDUR_VCF(VARIANT_CALLS_BALDUR.out.vcf)
+    ANNOTATE_BALDUR_INDELS(NORMALIZE_BALDUR_VCF.out.norm_indels_vcf, mitomap_anno_file_ch)
+    ANNOTATE_BALDUR_SNVS(NORMALIZE_BALDUR_VCF.out.norm_snvs_vcf, mitomap_anno_file_ch)
 
-    // SNV/indel/del variant calling - baldur
-    VARIANT_CALLS_BALDUR(mt_filtered_bam, mt_ref_ch, sample_id_ch)
-    NORMALIZE_BALDUR_VCF(VARIANT_CALLS_BALDUR.out.baldur_vcf, mt_ref_ch)
-    ANNOTATE_BALDUR_INDELS(NORMALIZE_BALDUR_VCF.out.baldur_norm_indels_vcf, mitomap_anno_file_ch)
-    ANNOTATE_BALDUR_SNVS(NORMALIZE_BALDUR_VCF.out.baldur_norm_snvs_vcf, mitomap_anno_file_ch)
-
-    // SNV variant calling - mutserve
-    VARIANT_CALLS_MUTSERVE(mt_filtered_bam, mt_ref_ch, sample_id_ch)
-    NORMALIZE_MUTSERVE_VCF(VARIANT_CALLS_MUTSERVE.out.mutserve_vcf, mt_ref_ch)
-    ANNOTATE_MUTSERVE_VCF(NORMALIZE_MUTSERVE_VCF.out.mutserve_norm_vcf, mitomap_anno_file_ch)
+    // SNV variant calling (mutserve) on reference
+    VARIANT_CALLS_MUTSERVE(FILTER_NUMTS.out.filtered_bam, mt_ref_ch, Channel.value("MT"))
+    NORMALIZE_MUTSERVE_VCF(VARIANT_CALLS_MUTSERVE.out.vcf)
+    ANNOTATE_MUTSERVE_VCF(NORMALIZE_MUTSERVE_VCF.out.norm_vcf, mitomap_anno_file_ch)
 
     // Haplogrep/haplocheck
-    HAPLOGREP(VARIANT_CALLS_MUTSERVE.out.mutserve_vcf)
-    HAPLOCHECK(VARIANT_CALLS_MUTSERVE.out.mutserve_vcf)
+    HAPLOGREP(VARIANT_CALLS_MUTSERVE.out.vcf)
+    HAPLOCHECK(VARIANT_CALLS_MUTSERVE.out.vcf)
 
-    // SV Calling
-    VARIANT_CALLS_SNIFFLES(mt_filtered_bam)
-    FILTER_SNIFFLES_VCF_MINSUPPORT(VARIANT_CALLS_SNIFFLES.out.sniffles_vcf)
+    // SV Calling on reference
+    VARIANT_CALLS_SNIFFLES(FILTER_NUMTS.out.filtered_bam)
+    FILTER_SNIFFLES_VCF_MINSUPPORT(VARIANT_CALLS_SNIFFLES.out.vcf)
     
-    VARIANT_CALLS_SNIFFLES_ASSEMBLY(mt_align_assembly_bam)
-    FILTER_SNIFFLES_VCF_MINSUPPORT_ASSEMBLY(VARIANT_CALLS_SNIFFLES_ASSEMBLY.out.sniffles_vcf)
+    // SV Calling of assembly to reference
+    VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(ALIGN_ASSEMBLY_TO_REF.out.bam)
 
-    VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(mt_assembly_to_ref_bam)
+    // // variant calling (baldur) on rotated assembly
+    // VARIANT_CALLS_BALDUR_ASSEMBLY(mt_align_rotated_assembly_bam, rotated_assembly_fasta, sample_id_ch)
+    // NORMALIZE_BALDUR_VCF_ASSEMBLY(VARIANT_CALLS_BALDUR_ASSEMBLY.out.baldur_vcf)
+    // ANNOTATE_BALDUR_INDELS_ASSEMBLY(NORMALIZE_BALDUR_VCF_ASSEMBLY.out.baldur_norm_indels_vcf, mitomap_anno_file_ch)
+    // ANNOTATE_BALDUR_SNVS_ASSEMBLY(NORMALIZE_BALDUR_VCF_ASSEMBLY.out.baldur_norm_snvs_vcf, mitomap_anno_file_ch)
+
+    // // SNV variant calling (mutserve) on rotated assembly
+    // VARIANT_CALLS_MUTSERVE_ASSEMBLY(mt_align_rotated_assembly_bam, rotated_assembly_fasta, sample_id_ch, Channel.value("contig_1_rotated"))
+    // NORMALIZE_MUTSERVE_VCF_ASSEMBLY(VARIANT_CALLS_MUTSERVE_ASSEMBLY.out.mutserve_vcf)
+    // ANNOTATE_MUTSERVE_VCF_ASSEMBLY(NORMALIZE_MUTSERVE_VCF_ASSEMBLY.out.mutserve_norm_vcf, mitomap_anno_file_ch)
+
+    // // SV Calling on rotated assembly
+    // VARIANT_CALLS_SNIFFLES_ASSEMBLY(mt_align_rotated_assembly_bam)
+    // FILTER_SNIFFLES_VCF_MINSUPPORT_ASSEMBLY(VARIANT_CALLS_SNIFFLES_ASSEMBLY.out.sniffles_vcf)
+
 
 }
 

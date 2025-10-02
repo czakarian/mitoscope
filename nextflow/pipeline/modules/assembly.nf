@@ -1,36 +1,15 @@
-process BAM_TO_FASTQ_FOR_ASSEMBLY {
-
-    publishDir "${params.outdir}", mode: 'symlink'
-    container params.samtools
-    tag params.sample_id
-
-    input:
-    tuple path(input_bam), path(input_bam_index)
-
-    output:
-    path("${input_bam.getBaseName()}.fastq.gz"), emit: filtered_fastq
-
-    script:
-    """
-    set -euo pipefail
-
-    samtools fastq -T MM,ML -@ ${task.cpus} -0 ${input_bam.getBaseName()}.fastq.gz ${input_bam}
-    """
-}
-
-
 process MT_ASSEMBLY {
 
-    publishDir "${params.outdir}/assembly", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/", mode: 'symlink'
     container params.flye
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path filtered_fastq
+    tuple val(sample_id), path(filtered_fastq)
     val platform
 
     output:
-    path("MT_assembly"), emit: assembly_dir
+    tuple val(sample_id), path("MT_assembly")
 
     script:
     def flye_preset = platform == 'ont' ? '--nano-hq' : 
@@ -43,55 +22,73 @@ process MT_ASSEMBLY {
 
 process ROTATE_ASSEMBLY {
 
-    publishDir "${params.outdir}/assembly/MT_assembly", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/MT_assembly", pattern: "*.fasta", mode: 'symlink'
+    publishDir path: "${params.outdir}/logs", pattern: "*.log", mode: 'symlink'
     container params.python
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path mt_assembly
-    tuple path(assembly_align_ref_bam), path(assembly_align_ref_bam_index)
-
+    tuple val(sample_id), path(assembly_fasta), path(assembly_fasta_fai)
+    tuple val(sample_id), path(assembly_align_ref_bam), path(assembly_align_ref_bam_index)
 
     output:
-    path("assembly_rotated.fasta"), emit: rotated_assembly_fasta
+    tuple val(sample_id), path("assembly_rotated.fasta"), emit: fastq, optional: true
+    path("rotate_assembly.log")
 
     script:
     """
-    rotate.py --bam ${assembly_align_ref_bam} --assembly ${mt_assembly}
+    rotate.py --bam ${assembly_align_ref_bam} --assembly ${assembly_fasta}
+    """
+}
+
+process INDEX_ASSEMBLY {
+
+    publishDir "${params.outdir}/${sample_id}/MT_assembly", mode: 'symlink'
+    container params.samtools
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(assembly_fasta)
+
+    output:
+    tuple val(sample_id), path(assembly_fasta), path("*.fai")
+
+    script:
+    """
+    samtools faidx ${assembly_fasta}
     """
 }
 
 
-process CHECK_CIRCULAR_GENOME{
+// process CHECK_CIRCULAR_GENOME{
 
-    publishDir "${params.outdir}/assembly/MT_assembly/", mode: 'symlink'
+//     publishDir "${params.outdir}/MT_assembly/", mode: 'symlink'
+//     tag params.sample_id
 
-    tag params.sample_id
+//     input:
+//     path mt_assembly_dir
+//     val sample_id
+//     tuple path(mt_assembly_to_ref_bam), path(mt_assembly_to_ref_bam_index)
 
-    input:
-    path mt_assembly_dir
-    val sample_id
-    tuple path(mt_assembly_to_ref_bam), path(mt_assembly_to_ref_bam_index)
+//     output:
+//     path("sieved_graph"), emit: sieved_graph_dir
 
-    output:
-    path("sieved_graph"), emit: sieved_graph_dir
+//     script:
+//     """
+//     # check assembly graph for circular genome..
+//     mkdir -p sieved_graph
 
-    script:
-    """
-    # check assembly graph for circular genome..
-    mkdir -p sieved_graph
-
-    ecLegov2.pl sievegraph \
-    --gv ${mt_assembly_dir}/assembly_graph.gv \
-    --diploidcov 24 \
-    --oprefix sieved_graph/${sample_id}.MT.assembly \
-    --bam ${mt_assembly_to_ref_bam}
-    """
-}
+//     ecLegov2.pl sievegraph \
+//     --gv ${mt_assembly_dir}/assembly_graph.gv \
+//     --diploidcov 24 \
+//     --oprefix sieved_graph/${sample_id}.MT.assembly \
+//     --bam ${mt_assembly_to_ref_bam}
+//     """
+// }
 
 // process SUBPOPULATIONS {
 
-//     publishDir "${params.outdir}/assembly/MT_assembly/", mode: 'symlink'
+//     publishDir "${params.outdir}/MT_assembly/", mode: 'symlink'
 
 //     tag params.sample_id
 

@@ -1,16 +1,16 @@
 process KMER_SELECTION {
 
-    publishDir params.outdir, mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}", mode: 'symlink'
     container params.kmctools
-    tag params.sample_id
+    tag "${sample_id}"
 
     input:
-    path fastq_file
+    tuple val(sample_id), path(fastq_file)
     path kmc_pre
     path kmc_suf
 
     output:
-    path "${fastq_file.getBaseName(2)}.MT.fastq.gz"
+    tuple val(sample_id), path("${fastq_file.getBaseName(2)}.MT.fastq.gz")
 
     script:
     """
