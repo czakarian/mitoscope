@@ -1,0 +1,29 @@
+Bootstrap: docker
+From: python:3.11-slim
+
+%labels
+    Author Christina Zakarian
+    Version 1.0
+    Description "Python 3.11 with specific Python packages"
+
+%post
+    # Install system-level dependencies
+    apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libz-dev \
+        libbz2-dev \
+        liblzma-dev \
+        curl \
+        procps
+
+    # Upgrade pip and install Python packages with fixed versions
+    pip install --no-cache-dir --upgrade pip
+    pip install --no-cache-dir \
+        matplotlib==3.9.2 \
+        pandas==2.2.1 \
+        pysam==0.22.0 \
+        seaborn==0.13.2 \
+        biopython==1.85
+
+    echo "===== Cleaning up ====="
+    apt-get clean && rm -rf /var/lib/apt/lists/*

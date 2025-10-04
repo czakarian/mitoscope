@@ -1,5 +1,5 @@
 process HAPLOGREP {
-    publishDir "${params.outdir}/${sample_id}/qc/haplogroup", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/haplogroup", mode: 'copy'
     container params.haplogrep
     tag "${sample_id}"
 
@@ -22,7 +22,7 @@ process HAPLOGREP {
 }
 
 process HAPLOCHECK {
-    publishDir "${params.outdir}/${sample_id}/qc/haplogroup", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/haplogroup", mode: 'copy'
     container params.haplocheck
     tag "${sample_id}"
 

@@ -18,17 +18,12 @@ include { ALIGN_TO_REF;
           ALIGN_TO_ASSEMBLY as ALIGN_TO_ROTATED_ASSEMBLY; 
           ALIGN_ASSEMBLY_TO_REF as ALIGN_ASSEMBLY_TO_REF;
           ALIGN_ASSEMBLY_TO_REF as ALIGN_ROTATED_ASSEMBLY_TO_REF} from './modules/alignment.nf'
-        //   SAM_TO_BAM as SAM_TO_BAM; 
-        //   SAM_TO_BAM as SAM_TO_BAM_ASSEMBLY;
-        //   SAM_TO_BAM as SAM_TO_BAM_ROTATED_ASSEMBLY;
-        //   SAM_TO_BAM as SAM_TO_BAM_ASSEMBLY_TO_REF;
-        //   SAM_TO_BAM as SAM_TO_BAM_ROTATED_ASSEMBLY_TO_REF
 include { FILTER_NUMTS; FILTERED_BAM_TO_FASTQ; } from './modules/filtration.nf'
 include { MT_ASSEMBLY; ROTATE_ASSEMBLY; 
           INDEX_ASSEMBLY as INDEX_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ROTATED_ASSEMBLY} from './modules/assembly.nf'
 include { METH_FREQ; METH_PLOT} from './modules/methylation.nf'
-include { MT_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; READ_LENGTH_PLOT} from './modules/qc.nf'
+include { MT_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; READ_LENGTH_PLOT; QC_SUMMARY; COMBINE_QC_SUMMARY} from './modules/qc.nf'
 include { VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR;
           VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR_ASSEMBLY; 
           NORMALIZE_BALDUR_VCF as NORMALIZE_BALDUR_VCF;
@@ -53,13 +48,12 @@ include { HAPLOGREP; HAPLOCHECK} from './modules/haplo.nf'
 
 workflow {
 
-    // // Check for required parameters
-    // if (!params.inputfile || !params.sample_id || !params.outdir || !params.platform) {
-    //     error "Missing one of required parameters: inputfile, sample_id, outdir, platform"
-    // }
-    // if (!file(params.inputfile).exists()) error "Input file does not exist: ${params.inputfile}"
+    // Check for required parameters
+    if (!params.samplesheet || !params.input_type || !params.is_aligned || !params.outdir || !params.platform) {
+        error "Missing one of required parameters: samplesheet, input_type, is_aligned, outdir, platform"
+    }
 
-    // Set up parameters
+    // Set up channels for reusable parameters
     Channel.fromPath(params.kmc_pre, checkIfExists: true)
         .first()
         .set { kmc_pre_ch }
@@ -89,6 +83,7 @@ workflow {
         error "Invalid value for --platform. Must be 'ont' or 'pb'."
     }
 
+    // read in sample sheet
     Channel
         .fromPath(params.samplesheet) // Path to your samplesheet
         .splitCsv(header: true) // Split into a channel of maps, using header
@@ -106,6 +101,7 @@ workflow {
             tuple(row.sample_id, sample_file, index_file)
     }.set { samples_ch }
 
+    // Generate gzipped fastq file from input 
     if (params.is_aligned) {
         if (params.input_type == 'bam') {
             fastq_out = ALIGNED_BAM_TO_FASTQ(samples_ch)
@@ -128,7 +124,6 @@ workflow {
         } 
     }
 
-
     // Select MT reads via kmer selection
     KMER_SELECTION(fastq_gz_out, kmc_pre_ch, kmc_suf_ch)
     
@@ -139,21 +134,13 @@ workflow {
 
     // Assemble mito
     MT_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, params.platform)
-    INDEX_ASSEMBLY(MT_ASSEMBLY.out
+    INDEX_ASSEMBLY(MT_ASSEMBLY.out.assembly_dir
         .map { sample_id, dir -> tuple(sample_id, file("${dir}/assembly.fasta"))})
         .set { assembly_fasta }
 
     // Align reads to assembly and align assembly to ref
     ALIGN_TO_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, assembly_fasta, params.platform)
     ALIGN_ASSEMBLY_TO_REF(assembly_fasta, minimap_index_ch, params.platform)
-
-    // Rotate assembly to match reference coordinates and realign MT reads to it
-    // ROTATE_ASSEMBLY(assembly_fasta, ALIGN_ASSEMBLY_TO_REF.out.bam) 
-    // INDEX_ROTATED_ASSEMBLY(ROTATE_ASSEMBLY.out.fasta).set{ rotated_assembly_fasta }
-    
-    // // Align reads to rotated assembly and align rotated assembly to ref
-    // ALIGN_TO_ROTATED_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, rotated_assembly_fasta, params.platform).set{ mt_align_rotated_assembly_bam }
-    // ALIGN_ROTATED_ASSEMBLY_TO_REF(rotated_assembly_fasta, minimap_index_ch, params.platform)
 
     // Methylation
     METH_FREQ(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
@@ -164,6 +151,10 @@ workflow {
     COVERAGE_PLOT(MT_COVERAGE.out.per_base_bed)
     MT_READ_LENGTH(FILTER_NUMTS.out.filtered_bam)
     READ_LENGTH_PLOT(MT_READ_LENGTH.out)
+
+    // QC summary 
+    QC_SUMMARY(MT_COVERAGE.out.mosdepth_summary, MT_READ_LENGTH.out, METH_FREQ.out.minimod_tsv)
+    COMBINE_QC_SUMMARY(QC_SUMMARY.out.collect())
 
     // SNV/indel/del variant calling (baldur) on reference
     VARIANT_CALLS_BALDUR(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
@@ -186,6 +177,14 @@ workflow {
     
     // SV Calling of assembly to reference
     VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(ALIGN_ASSEMBLY_TO_REF.out.bam)
+
+    // Rotate assembly to match reference coordinates and realign MT reads to it
+    //ROTATE_ASSEMBLY(assembly_fasta, ALIGN_ASSEMBLY_TO_REF.out.bam, MT_ASSEMBLY.out) 
+    //INDEX_ROTATED_ASSEMBLY(ROTATE_ASSEMBLY.out).set{ rotated_assembly_fasta }
+    
+    // // Align reads to rotated assembly and align rotated assembly to ref
+    // ALIGN_TO_ROTATED_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, rotated_assembly_fasta, params.platform).set{ mt_align_rotated_assembly_bam }
+    // ALIGN_ROTATED_ASSEMBLY_TO_REF(rotated_assembly_fasta, minimap_index_ch, params.platform)
 
     // // variant calling (baldur) on rotated assembly
     // VARIANT_CALLS_BALDUR_ASSEMBLY(mt_align_rotated_assembly_bam, rotated_assembly_fasta, sample_id_ch)

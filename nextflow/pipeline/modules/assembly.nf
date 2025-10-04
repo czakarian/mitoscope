@@ -1,6 +1,6 @@
 process MT_ASSEMBLY {
 
-    publishDir "${params.outdir}/${sample_id}/", mode: 'symlink'
+    publishDir path: "${params.outdir}/${sample_id}/", pattern:"MT_assembly",  mode: 'copy'
     container params.flye
     tag "${sample_id}"
 
@@ -9,7 +9,7 @@ process MT_ASSEMBLY {
     val platform
 
     output:
-    tuple val(sample_id), path("MT_assembly")
+    tuple val(sample_id), path("MT_assembly"), emit: assembly_dir
 
     script:
     def flye_preset = platform == 'ont' ? '--nano-hq' : 
@@ -20,30 +20,10 @@ process MT_ASSEMBLY {
     """
 }
 
-process ROTATE_ASSEMBLY {
-
-    publishDir "${params.outdir}/${sample_id}/MT_assembly", pattern: "*.fasta", mode: 'symlink'
-    publishDir path: "${params.outdir}/logs", pattern: "*.log", mode: 'symlink'
-    container params.python
-    tag "${sample_id}"
-
-    input:
-    tuple val(sample_id), path(assembly_fasta), path(assembly_fasta_fai)
-    tuple val(sample_id), path(assembly_align_ref_bam), path(assembly_align_ref_bam_index)
-
-    output:
-    tuple val(sample_id), path("assembly_rotated.fasta"), emit: fastq, optional: true
-    path("rotate_assembly.log")
-
-    script:
-    """
-    rotate.py --bam ${assembly_align_ref_bam} --assembly ${assembly_fasta}
-    """
-}
 
 process INDEX_ASSEMBLY {
 
-    publishDir "${params.outdir}/${sample_id}/MT_assembly", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/MT_assembly", mode: 'copy'
     container params.samtools
     tag "${sample_id}"
 
@@ -59,65 +39,30 @@ process INDEX_ASSEMBLY {
     """
 }
 
+// process CHECK_CIRCULARITY {
 
-// process CHECK_CIRCULAR_GENOME{
 
-//     publishDir "${params.outdir}/MT_assembly/", mode: 'symlink'
-//     tag params.sample_id
 
-//     input:
-//     path mt_assembly_dir
-//     val sample_id
-//     tuple path(mt_assembly_to_ref_bam), path(mt_assembly_to_ref_bam_index)
-
-//     output:
-//     path("sieved_graph"), emit: sieved_graph_dir
-
-//     script:
-//     """
-//     # check assembly graph for circular genome..
-//     mkdir -p sieved_graph
-
-//     ecLegov2.pl sievegraph \
-//     --gv ${mt_assembly_dir}/assembly_graph.gv \
-//     --diploidcov 24 \
-//     --oprefix sieved_graph/${sample_id}.MT.assembly \
-//     --bam ${mt_assembly_to_ref_bam}
-//     """
 // }
 
-// process SUBPOPULATIONS {
+process ROTATE_ASSEMBLY {
 
-//     publishDir "${params.outdir}/MT_assembly/", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/MT_assembly", pattern: "*.fasta", mode: 'symlink'
+    publishDir path: "${params.outdir}/logs", pattern: "*.log", mode: 'symlink'
+    container params.python
+    tag "${sample_id}"
 
-//     tag params.sample_id
+    input:
+    tuple val(sample_id), path(assembly_fasta), path(assembly_fasta_fai)
+    tuple val(sample_id), path(assembly_align_ref_bam), path(assembly_align_ref_bam_index)
+    tuple val(sample_id), path(assembly_dir)
 
-//     input:
-//     path mt_assembly_dir
-//     val sample_id
-//     mt_assembly_align_to_ref_bam
+    output:
+    tuple val(sample_id), path("assembly_rotated.fasta"), optional: true
+    // path("rotate_assembly.log"), emit: log
 
-//     output:
-//     path("MT_assembly/*"), emit: mt_assembly_dir
-
-
-//     script:
-//     """
-//     echo '==' $(date) '==' subpopulation script setup..
-//     cgSupPop.pl setup \
-//     --assembly ${sample_id}.MT.assembly.cn24.disjointcyclic.gv.overview.xls \
-//     --vcf ${ALIGNDIR}/${FASTQPREFIX}.MT.assembly.bam.raw.vcf \
-//     --dicncov 4 --subgraph 1 --rsg 1 --sample ${sample_id} \
-//     --scriptPath .
-//     #
-//     mv process.sh process.sh.tmp
-//     cat process.sh.tmp | sed s?t2tv2.fasta?MT.fasta? > process.sh
-//     chmod u+x *.sh
-//     echo '==' $(date) '==' writing possible subpopulations..
-//     ./setup.sh
-//     echo '==' $(date) '==' variation calling on possible subpopulations..
-//     ./process.sh
-//     echo '==' $(date) '==' refining alignments possible subpopulations..
-//     ./refine.sh
-//     """
-// }
+    script:
+    """
+    rotate.py --bam ${assembly_align_ref_bam} --assembly ${assembly_fasta}
+    """
+}

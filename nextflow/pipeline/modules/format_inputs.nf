@@ -74,7 +74,7 @@ process UNALIGNED_CRAM_TO_FASTQ {
 
 process COMPRESS_FASTQ {
 
-    publishDir "${params.outdir}/${sample_id}", mode: 'symlink'
+    //publishDir "${params.outdir}/${sample_id}", mode: 'symlink'
     container params.pigz
     tag "${sample_id}"
 

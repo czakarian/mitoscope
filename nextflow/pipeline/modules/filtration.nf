@@ -1,8 +1,8 @@
 process FILTER_NUMTS {
 
-    publishDir path: "${params.outdir}/${sample_id}/alignments/to_ref", pattern: "*.{bam,bai}", mode: 'symlink'
-    publishDir path: "${params.outdir}/${sample_id}/methylation", pattern: "*.png", mode: 'symlink'
-    publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'symlink'
+    publishDir path: "${params.outdir}/${sample_id}/alignments/to_ref", pattern: "*.{bam,bai}", mode: 'copy'
+    publishDir path: "${params.outdir}/${sample_id}/methylation", pattern: "*.png", mode: 'copy'
+    publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -33,7 +33,7 @@ process FILTER_NUMTS {
 
 process FILTERED_BAM_TO_FASTQ {
 
-    publishDir "${params.outdir}/${sample_id}", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy'
     container params.samtools
     tag "${sample_id}"
 

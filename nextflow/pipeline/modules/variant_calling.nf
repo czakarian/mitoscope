@@ -1,7 +1,7 @@
 process VARIANT_CALLS_BALDUR {
 
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'copy'
     container params.baldur
     tag "${sample_id}"
 
@@ -28,8 +28,8 @@ process VARIANT_CALLS_BALDUR {
 
 process NORMALIZE_BALDUR_VCF {
 
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -58,8 +58,8 @@ process NORMALIZE_BALDUR_VCF {
 
 process ANNOTATE_BALDUR_SNVS {
     
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -88,8 +88,8 @@ process ANNOTATE_BALDUR_SNVS {
 
 process ANNOTATE_BALDUR_INDELS {
     
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_assembly", pattern: "*filtered.assembly_rotated.baldur*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/to_ref", pattern: "*filtered.baldur*", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -118,8 +118,8 @@ process ANNOTATE_BALDUR_INDELS {
 
 process VARIANT_CALLS_MUTSERVE {
 
-    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_assembly", pattern: "*filtered.assembly_rotated.mutserve*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_ref", pattern: "*filtered.mutserve*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_assembly", pattern: "*filtered.assembly_rotated.mutserve*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_ref", pattern: "*filtered.mutserve*", mode: 'copy'
     container params.mutserve
     tag "${sample_id}"
 
@@ -146,8 +146,8 @@ process VARIANT_CALLS_MUTSERVE {
 
 process NORMALIZE_MUTSERVE_VCF {
     
-    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_assembly", pattern: "*filtered.assembly_rotated.mutserve*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_ref", pattern: "*filtered.mutserve*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_assembly", pattern: "*filtered.assembly_rotated.mutserve*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_ref", pattern: "*filtered.mutserve*", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -171,8 +171,8 @@ process NORMALIZE_MUTSERVE_VCF {
 
 process ANNOTATE_MUTSERVE_VCF {
     
-    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_assembly", pattern: "*filtered.assembly_rotated.mutserve*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_ref", pattern: "*filtered.mutserve*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_assembly", pattern: "*filtered.assembly_rotated.mutserve*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/to_ref", pattern: "*filtered.mutserve*", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -203,9 +203,9 @@ process ANNOTATE_MUTSERVE_VCF {
 
 process VARIANT_CALLS_SNIFFLES {
 
-    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_assembly", pattern: "*filtered.assembly_rotated.sniffles*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_ref", pattern: "*filtered.sniffles*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/sniffles/assembly_to_ref", pattern: "*assembly.ref.sniffles*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_assembly", pattern: "*filtered.assembly_rotated.sniffles*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_ref", pattern: "*filtered.sniffles*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/assembly_to_ref", pattern: "*assembly.ref.sniffles*", mode: 'copy'
     container params.sniffles
     tag "${sample_id}"
 
@@ -229,8 +229,8 @@ process VARIANT_CALLS_SNIFFLES {
 
 process FILTER_SNIFFLES_VCF_MINSUPPORT {
     
-    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_assembly", pattern: "*filtered.assembly_rotated.sniffles*", mode: 'symlink'
-    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_ref", pattern: "*filtered.sniffles*", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_assembly", pattern: "*filtered.assembly_rotated.sniffles*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_ref", pattern: "*filtered.sniffles*", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 

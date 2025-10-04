@@ -1,6 +1,6 @@
 process METH_FREQ {
 
-    publishDir "${params.outdir}/${sample_id}/methylation", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/methylation", mode: 'copy'
     container params.minimod
     tag "${sample_id}"
 
@@ -29,7 +29,7 @@ process METH_FREQ {
 
 process METH_PLOT {
 
-    publishDir "${params.outdir}/${sample_id}/methylation", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/methylation", mode: 'copy'
     container params.python
     tag "${sample_id}"
 

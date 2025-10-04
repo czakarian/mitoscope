@@ -1,7 +1,7 @@
 process ALIGN_TO_REF {
 
-    publishDir path: "${params.outdir}/${sample_id}/alignments/to_ref", pattern: "*.{bam,bai}", mode: 'symlink'
-    publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'symlink'
+    publishDir path: "${params.outdir}/${sample_id}/alignments/to_ref", pattern: "*.{bam,bai}", mode: 'copy'
+    publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'copy'
     container params.minimap
     tag "${sample_id}"
 
@@ -29,8 +29,8 @@ process ALIGN_TO_REF {
 
 process ALIGN_TO_ASSEMBLY {
 
-    publishDir path: "${params.outdir}/${sample_id}/alignments/to_assembly", pattern: "*.{bam,bai}", mode: 'symlink'
-    publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'symlink'
+    publishDir path: "${params.outdir}/${sample_id}/alignments/to_assembly", pattern: "*.{bam,bai}", mode: 'copy'
+    publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'copy'
     container params.minimap
     tag "${sample_id}"
 
@@ -60,8 +60,8 @@ process ALIGN_TO_ASSEMBLY {
 
 process ALIGN_ASSEMBLY_TO_REF {
 
-    publishDir path: "${params.outdir}/${sample_id}/alignments/to_ref", pattern: "*.{bam,bai}", mode: 'symlink'
-    publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'symlink'
+    publishDir path: "${params.outdir}/${sample_id}/alignments/to_ref", pattern: "*.{bam,bai}", mode: 'copy'
+    publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'copy'
     container params.minimap
     tag "${sample_id}"
 
@@ -88,51 +88,3 @@ process ALIGN_ASSEMBLY_TO_REF {
     samtools index -@${task.cpus} "${sample_id}.${assembly_fasta.getBaseName()}.ref.bam"
     """
 }
-
-// process SAM_TO_BAM {
-
-//     publishDir "${params.outdir}/alignments", mode: 'symlink'
-//     container params.samtools
-//     tag params.sample_id
-
-//     input:
-//     path input_sam
-
-//     output:
-//     tuple path("${input_sam.getBaseName()}.bam"), path("${input_sam.getBaseName()}.bam.bai")
-
-//     script:
-//     """
-//     set -euo pipefail
-    
-//     samtools sort -@${task.cpus} -o "${input_sam.baseName}.bam" "${input_sam}"
-//     samtools index -@${task.cpus} "${input_sam.baseName}.bam"
-//     """
-// }
-
-// process SAMTOOLS_INDEX {
-
-//     publishDir "${params.outdir}/alignments", mode: 'symlink'
-//     container params.samtools
-//     tag params.sample_id
-
-//     input:
-//     path input_bam
-
-//     output:
-//     tuple path("${input_bam}"), path("${input_bam.baseName}.bam.bai")
-
-//     script:
-//     """
-//     set -euo pipefail
-    
-//     samtools index -@${task.cpus} ${input_bam}
-//     """
-// }
-
-
-
-
-
-
-

@@ -1,6 +1,6 @@
 process KMER_SELECTION {
 
-    publishDir "${params.outdir}/${sample_id}", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}", mode: 'copy'
     container params.kmctools
     tag "${sample_id}"
 

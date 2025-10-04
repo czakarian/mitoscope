@@ -1,0 +1,184 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%labels
+    Author Christina
+    Version 1.0
+
+%environment
+    export PATH=/opt/bin:$PATH
+    export PATH=/root/.cargo/bin:/baldur-bin:$PATH
+    export PATH=/opt/baldur/target/release/:$PATH
+    export LD_LIBRARY_PATH=/opt/htslib/lib:$LD_LIBRARY_PATH
+    export LC_ALL=C
+
+
+%post
+    #!/bin/bash
+    set -eu pipefail
+    
+    echo "===== Installing base dependencies ====="
+    apt-get update && apt-get install -y \
+        build-essential \
+        curl \
+        wget \
+        git \
+        zlib1g-dev \
+        libbz2-dev \
+        liblzma-dev \
+        libncurses5-dev \
+        libncursesw5-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        autoconf \
+        automake \
+        cmake \
+        make \
+        unzip \
+        default-jre \
+        openjdk-17-jdk \
+        perl \
+        python3 \
+        python3-pip
+
+    mkdir -p /opt/bin
+
+    pip3 install --no-cache-dir \
+      pysam \
+      pandas \
+      matplotlib \
+      seaborn \
+      sniffles==2.6.2
+
+    echo "===== Installing bcftools ====="
+    BCFTOOLS_VERSION=1.21
+    cd /opt && \
+    wget https://github.com/samtools/bcftools/releases/download/${BCFTOOLS_VERSION}/bcftools-${BCFTOOLS_VERSION}.tar.bz2 && \
+    tar -xjf bcftools-${BCFTOOLS_VERSION}.tar.bz2 && \
+    rm bcftools-${BCFTOOLS_VERSION}.tar.bz2 && \
+    cd bcftools-${BCFTOOLS_VERSION} && \
+    ./configure --prefix=/opt/bcftools-${BCFTOOLS_VERSION} && make && make install && \
+    ln -s /opt/bcftools-${BCFTOOLS_VERSION}/bin/bcftools /opt/bin/bcftools
+
+    echo "===== Installing samtools ====="
+    SAMTOOLS_VERSION=1.21
+    cd /opt && \
+    wget https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2 && \
+    tar -xjf samtools-${SAMTOOLS_VERSION}.tar.bz2 && \
+    rm samtools-${SAMTOOLS_VERSION}.tar.bz2 && \
+    cd samtools-${SAMTOOLS_VERSION} && \
+    ./configure --prefix=/opt/samtools-${SAMTOOLS_VERSION} && make && make install && \
+    ln -s /opt/samtools-${SAMTOOLS_VERSION}/bin/samtools /opt/bin/samtools
+
+    echo "===== Installing bedtools ====="
+    BEDTOOLS_VERSION=2.31.0
+    cd /opt && \
+    git clone https://github.com/arq5x/bedtools2.git && \
+    cd bedtools2 && \
+    git checkout v${BEDTOOLS_VERSION} && \
+    make && \
+    ln -s /opt/bedtools2/bin/bedtools /opt/bin/bedtools
+
+    echo "===== Installing Flye ====="
+    FLYE_VERSION=2.9.6
+    cd /opt && \
+    git clone https://github.com/mikolmogorov/Flye Flye-${FLYE_VERSION} && \
+    cd Flye-${FLYE_VERSION} && \
+    git checkout ${FLYE_VERSION} && \
+    pip install . --prefix=/opt/Flye-${FLYE_VERSION}
+    ln -s /opt/Flye-${FLYE_VERSION}/bin/flye /opt/bin/flye
+
+    echo "===== Installing KMC Tools ====="
+    KMC_VERSION=3.2.1
+    cd /opt && \
+    wget https://github.com/refresh-bio/KMC/archive/refs/tags/v${KMC_VERSION}.tar.gz -O kmc-${KMC_VERSION}.tar.gz && \
+    tar -xzf kmc-${KMC_VERSION}.tar.gz && \
+    rm kmc-${KMC_VERSION}.tar.gz && \
+    cd KMC-${KMC_VERSION} && \
+    make && \
+    ln -s /opt/KMC-${KMC_VERSION}/bin/kmc /opt/bin/kmc && \
+    ln -s /opt/KMC-${KMC_VERSION}/bin/kmc_dump /opt/bin/kmc_dump && \
+    ln -s /opt/KMC-${KMC_VERSION}/bin/kmc_tools /opt/bin/kmc_tools
+
+    echo "===== Installing Minimap2 ====="
+    MINIMAP_VERSION=2.24
+    cd /opt && \
+    git clone https://github.com/lh3/minimap2.git && \
+    cd minimap2 && \
+    git checkout v${MINIMAP_VERSION} && \
+    make && \
+    ln -s /opt/minimap2/minimap2 /opt/bin/minimap2
+
+    echo "===== Installing mosdepth ====="
+    MOSDEPTH_VERSION=0.3.8
+    cd /opt && \
+    wget https://github.com/brentp/mosdepth/releases/download/v${MOSDEPTH_VERSION}/mosdepth -O /opt/bin/mosdepth && \
+    chmod +x /opt/bin/mosdepth
+
+    echo "===== Installing pigz ====="
+    PIGZ_VERSION=2.3.4
+    cd /opt && \
+    git clone https://github.com/madler/pigz/ && \
+    cd pigz && \
+    git checkout v${PIGZ_VERSION} && \
+    make && \
+    ln -s /opt/pigz/pigz /opt/bin/pigz
+
+    echo "===== Installing mutserve ====="
+    MUTSERVE_VERSION=2.0.3
+    cd /opt && \
+    wget https://github.com/seppinho/mutserve/releases/download/v${MUTSERVE_VERSION}/mutserve.zip -O mutserve_${MUTSERVE_VERSION}.zip && \
+    unzip mutserve_${MUTSERVE_VERSION}.zip -d mutserve && \
+    rm mutserve_${MUTSERVE_VERSION}.zip
+    ln -s /opt/mutserve/mutserve /opt/bin/mutserve
+
+    echo "===== Installing haplogrep ====="
+    HAPLOGREP_VERSION=3.2.2
+    cd /opt && \
+    wget https://github.com/genepi/haplogrep3/releases/download/v${HAPLOGREP_VERSION}/haplogrep3-${HAPLOGREP_VERSION}-linux.zip -O haplogrep_${HAPLOGREP_VERSION}.zip && \
+    unzip haplogrep_${HAPLOGREP_VERSION}.zip -d haplogrep && \
+    rm haplogrep_${HAPLOGREP_VERSION}.zip && \
+    ln -s /opt/haplogrep/haplogrep3 /opt/bin/haplogrep3
+    /opt/haplogrep/haplogrep3 install-tree phylotree-fu-rcrs@1.2
+    
+    echo "===== Installing haplocheck ====="
+    HAPLOCHECK_VERSION=1.3.3
+    cd /opt && \
+    wget https://github.com/genepi/haplocheck/releases/download/v${HAPLOCHECK_VERSION}/haplocheck.zip -O haplocheck_${HAPLOCHECK_VERSION}.zip && \
+    unzip haplocheck_${HAPLOCHECK_VERSION}.zip -d haplocheck && \
+    rm haplocheck_${HAPLOCHECK_VERSION}.zip
+    ln -s /opt/haplocheck/haplocheck /opt/bin/haplocheck
+
+    #### BALDUR SET UP ######
+
+    echo "===== Installing rust ====="
+    curl https://sh.rustup.rs -sSf | bash -s -- -y
+    export PATH=/root/.cargo/bin:$PATH
+
+    echo "===== Installing htslib ====="
+    HTSLIB_VERSION=1.14
+    cd /opt && \
+    wget https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/htslib-${HTSLIB_VERSION}.tar.bz2 && \
+    tar -xjf htslib-${HTSLIB_VERSION}.tar.bz2 && \
+    rm htslib-${HTSLIB_VERSION}.tar.bz2 && \
+    mv htslib-${HTSLIB_VERSION} htslib && \
+    cd htslib && \
+    ./configure --prefix=/opt/htslib && make && make install
+    ln -s /opt/htslib/bin/htslib /opt/bin/htslib
+
+    echo "===== Installing baldur ====="
+    BALDUR_VERSION=1.2.2
+    cd /opt && \
+    git clone https://github.com/heathsc/baldur.git && \
+    cd baldur && \
+    RUSTFLAGS="-L /opt/htslib/lib" cargo build --release
+
+    # Copy binary and data file for easy access
+    mkdir -p /baldur-bin
+    cp target/release/baldur /baldur-bin/
+    cp share/blacklist.txt /baldur-bin/
+
+    #########
+
+    echo "===== Cleaning up ====="
+    apt-get clean && rm -rf /var/lib/apt/lists/*

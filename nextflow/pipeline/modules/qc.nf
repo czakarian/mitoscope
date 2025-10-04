@@ -1,6 +1,6 @@
 process MT_COVERAGE {
 
-    publishDir "${params.outdir}/${sample_id}/qc/coverage", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/coverage", mode: 'copy'
     container params.mosdepth
     tag "${sample_id}"
 
@@ -22,7 +22,7 @@ process MT_COVERAGE {
 
 process MT_READ_LENGTH {
 
-    publishDir "${params.outdir}/${sample_id}/qc/read_length", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/read_length", mode: 'copy'
     container params.samtools
     tag "${sample_id}"
 
@@ -43,7 +43,7 @@ process MT_READ_LENGTH {
 
 process COVERAGE_PLOT {
 
-    publishDir "${params.outdir}/${sample_id}/qc/coverage", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/coverage", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -65,7 +65,7 @@ process COVERAGE_PLOT {
 
 process READ_LENGTH_PLOT {
 
-    publishDir "${params.outdir}/${sample_id}/qc/read_length", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/qc/read_length", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -83,42 +83,47 @@ process READ_LENGTH_PLOT {
     """
 }
 
-// process QC_SUMMARY {
+process QC_SUMMARY {
     
-    
-//     script:
-//     """
-//     set -euo pipefail
-//     ## get overall qc stats and to qc_summary.txt
-//     mean_cov=$(awk '$1 == "MT" {print $4}' ${QCDIR}/${FASTQPREFIX}.mosdepth.summary.txt)
-//     read_count=$(cat ${QCDIR}/${FASTQPREFIX}.read_lengths.txt | wc -l)
-//     avg_length=$(awk '{sum+=$1} END {print sum/NR}' ${QCDIR}/${FASTQPREFIX}.read_lengths.txt)
+    // publishDir "${params.outdir}/${sample_id}/qc/", mode: 'copy'
+    container params.python
+    tag "${sample_id}"
 
-//     ## calculate N50
-//     n50=$(awk '{sum+=$1; arr[NR]=$1} END {
-//         half = sum/2;
-//         n = asort(arr);
-//         total = 0;
-//         for (i = n; i >= 1; i--) {
-//             total += arr[i];
-//             if (total >= half) {
-//                 print arr[i];
-//                 break;
-//             }
-//         }
-//     }' ${QCDIR}/${FASTQPREFIX}.read_lengths.txt)
+    input:
+    tuple val(sample_id), path(mosdepth_summary_file)
+    tuple val(sample_id), path(read_lengths_file)
+    tuple val(sample_id), path(minimod_file)
 
-//     # get methylation stats
-//     avg_meth=$(awk '{sum+=$7} END {print sum/(NR-1)}' ${QCDIR}/${FASTQPREFIX}.minimod.tsv)
-//     meth_gt_1=$(awk 'NR>1 && $7 > 0.01 {count++} END {print count/(NR-1)}' ${QCDIR}/${FASTQPREFIX}.minimod.tsv)
-//     meth_gt_5=$(awk 'NR>1 && $7 > 0.05 {count++} END {print count/(NR-1)}' ${QCDIR}/${FASTQPREFIX}.minimod.tsv)
-//     meth_gt_10=$(awk 'NR>1 && $7 > 0.1 {count++} END {print count/(NR-1)}' ${QCDIR}/${FASTQPREFIX}.minimod.tsv)
+    output:
+    path("${sample_id}.qc_summary.tsv")
 
-//     echo -e "Sample\tRead_Count\tMean_Coverage\tAverage_Read_Length\tN50\tAverage_Methylation_Percent\tNum_Meth_Sites_GT_1\tNum_Meth_Sites_GT_5\tNum_Meth_Sites_GT_10" > ${QCDIR}/${FASTQPREFIX}.qc_summary.txt
-//     echo -e "${FASTQPREFIX}\t${read_count}\t${mean_cov}\t${avg_length}\t${n50}\t${avg_meth}\t${meth_gt_1}\t${meth_gt_5}\t${meth_gt_10}" >> ${QCDIR}/${FASTQPREFIX}.qc_summary.txt
+    """
+    qc_summary.py \
+    -c ${mosdepth_summary_file} \
+    -r ${read_lengths_file} \
+    -m ${minimod_file} \
+    -s ${sample_id}
+    """
+}
 
-//     echo '==' $(date) '==' Get basic QC stats -- methylation, mean coverage, read count, avg read length, n50 COMPLETED
-//     ##  
-//     """   
-// }
 
+process COMBINE_QC_SUMMARY {
+    publishDir "${params.outdir}/", mode: 'copy'
+
+    input:
+    path summary_files
+
+    output:
+    path "qc_summary.tsv"
+
+    script:
+    """
+    # grab header from the first file
+    head -n 1 \$(ls ${summary_files} | head -n 1) > qc_summary.tsv
+
+    # append all data rows (skip header)
+    for f in ${summary_files}; do
+        tail -n +2 \$f >> qc_summary.tsv
+    done
+    """
+}
