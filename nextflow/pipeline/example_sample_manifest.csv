@@ -1,0 +1,6 @@
+sample_id,sample_file
+sample1,/path/to/sample1.bam
+sample2,/path/to/sample2.bam
+sample3,/path/to/sample3.bam
+sample4,/path/to/sample4.bam
+

@@ -21,8 +21,9 @@ process VARIANT_CALLS_BALDUR {
     --output-deletions \
     -T ${mt_ref} \
     -n ${sample_id} \
+    -q 20 -Q 20 --view \
     -o "${input_bam.getBaseName()}.baldur" \
-    ${input_bam}
+    ${input_bam} 
     """
 }
 
@@ -139,7 +140,8 @@ process VARIANT_CALLS_MUTSERVE {
     --output ${input_bam.getBaseName()}.mutserve.vcf.gz \
     --reference ${mt_ref} \
     --contig-name ${contig_name} \
-    --threads ${task.cpus} --no-ansi
+    --threads ${task.cpus} --no-ansi \
+    --alignQ 0 --mapQ 20 --baseQ 20 --level 0.005
 
     """
 }

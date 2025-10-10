@@ -6,6 +6,7 @@
 
 import argparse
 import pysam
+import seaborn as sns
 import re
 import os
 import matplotlib.pyplot as plt
@@ -77,21 +78,39 @@ def methylation_plot(meth_per_read_list, meth_prob_likelihood):
         None
     """
 
-    plt.hist(meth_per_read_list, bins=50, color='blue')
-    plt.axvline(x=args.max_meth_threshold, color='red', linestyle='-', linewidth=2)
+    plt.figure(figsize=(6, 4))
+    sns.histplot(meth_per_read_list, bins=50, kde=True, color='blue', edgecolor=None)
+    plt.axvline(x=args.max_meth_threshold, color='red', linestyle='--', linewidth=1)
     plt.xlabel('Percent of methylated CpG sites on read')
     plt.ylabel('# of Reads')
     plt.xlim(0,1)
     #plt.grid(True)
     plt.savefig(prefix + '.methylation_per_read.png', dpi=300)
-    plt.show()
+    plt.close()
 
-    plt.hist(meth_prob_likelihood, bins=50, color='blue')
+    plt.figure(figsize=(6, 4))
+    sns.histplot(meth_prob_likelihood, bins=50, kde=True, color='blue', edgecolor=None)
     plt.xlabel('Methylation Probability Likelihood')
     plt.ylabel('# of CpG sites')
+    plt.tight_layout()
     #plt.grid(True)
     plt.savefig(prefix + '.methylation_likelihood.png', dpi=300)
-    plt.show()
+    plt.close()
+
+def plot_ref_consuming_lengths(ref_cons_lengths):
+    """
+    Plot 
+    """
+
+    plt.figure(figsize=(6, 4))
+    sns.histplot(ref_cons_lengths, bins=50, kde=True, color='blue', edgecolor=None)
+    plt.axvline(x=16569, color='red', linestyle='--', linewidth=1)
+    plt.xlabel('Reference-consuming length')
+    plt.ylabel('# of Reads')
+    plt.tight_layout()
+    plt.savefig(prefix + '.ref_consuming_hist_kde.png', dpi=300)
+    plt.close()
+
 
 def is_foldback(read_parts):
     """
@@ -104,7 +123,7 @@ def is_foldback(read_parts):
     strands = {line.is_reverse for line in read_parts}
     return len(strands) > 1
 
-def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth_per_read_list, meth_prob_likelihood):
+def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth_per_read_list, meth_prob_likelihood, ref_cons_lengths):
     """
     Determine whether a read resembles a NUMT sequence based on level of unaligned soft-clipping across alignments as well as methylation level of the read.
     Args:
@@ -120,11 +139,15 @@ def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth
     ## 1. check unaligned softclipping levels
     total_query_lengths = []
     mapped_query_length = 0
+    reference_consuming = 0
     
     for line in read_parts:
         cigar_counts = get_cigar_counts(line.cigarstring)
         total_query_lengths.append(cigar_counts['M'] + cigar_counts['I'] + cigar_counts['S'] + cigar_counts['H'])
         mapped_query_length += cigar_counts['M'] + cigar_counts['I']
+        reference_consuming += cigar_counts['M'] + cigar_counts['D']
+
+    ref_cons_lengths.append(reference_consuming)
 
     if len(set(total_query_lengths)) > 1:
         print('Warning: Query lengths differ between alignments with same read name.')
@@ -140,7 +163,7 @@ def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth
     else:
         return False
 
-def process_read_group(read_parts, read_counts, meth_per_read_list, keep_file_handle, discard_file_handle, meth_prob_likelihood):
+def process_read_group(read_parts, read_counts, meth_per_read_list, keep_file_handle, discard_file_handle, meth_prob_likelihood, ref_cons_lengths):
     """
     Process a group of reads and categorize as foldback, NUMT, or kept read.
     Args:
@@ -155,7 +178,7 @@ def process_read_group(read_parts, read_counts, meth_per_read_list, keep_file_ha
     """
     if is_foldback(read_parts):
         category, target = 'foldback', discard_file_handle
-    elif is_NUMT(read_parts, args.max_sc_threshold, args.max_meth_threshold, meth_per_read_list, meth_prob_likelihood):
+    elif is_NUMT(read_parts, args.max_sc_threshold, args.max_meth_threshold, meth_per_read_list, meth_prob_likelihood, ref_cons_lengths):
         category, target = 'numt', discard_file_handle
     else:
         category, target = 'kept', keep_file_handle
@@ -190,22 +213,24 @@ read_parts = []
 current_readname = None
 percent_meth_per_read = []
 meth_prob_likelihood = []
+ref_consuming_lengths = []
 
 for line in fr:
     if current_readname == line.query_name:
         read_parts.append(line)
     else:
         if read_parts:  # Process the previous group
-            process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood)
+            process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood, ref_consuming_lengths)
         read_parts = [line]
         current_readname = line.query_name
 
 # Process the final group
 if read_parts:
-    process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood)
+    process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood, ref_consuming_lengths)
 
 ## plot distribution of read methylation
 methylation_plot(percent_meth_per_read, meth_prob_likelihood)
+plot_ref_consuming_lengths(ref_consuming_lengths)
 
 ## close read/write files
 fr.close()

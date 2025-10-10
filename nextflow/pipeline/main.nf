@@ -19,7 +19,7 @@ include { ALIGN_TO_REF;
           ALIGN_ASSEMBLY_TO_REF as ALIGN_ASSEMBLY_TO_REF;
           ALIGN_ASSEMBLY_TO_REF as ALIGN_ROTATED_ASSEMBLY_TO_REF} from './modules/alignment.nf'
 include { FILTER_NUMTS; FILTERED_BAM_TO_FASTQ; } from './modules/filtration.nf'
-include { MT_ASSEMBLY; ROTATE_ASSEMBLY; 
+include { MT_ASSEMBLY; ROTATE_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ROTATED_ASSEMBLY} from './modules/assembly.nf'
 include { METH_FREQ; METH_PLOT} from './modules/methylation.nf'
@@ -132,14 +132,14 @@ workflow {
     FILTER_NUMTS(ALIGN_TO_REF.out.bam)
     FILTERED_BAM_TO_FASTQ(FILTER_NUMTS.out.filtered_bam)
 
-    // Assemble mito
+    // // Assemble mito
     MT_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, params.platform)
     INDEX_ASSEMBLY(MT_ASSEMBLY.out.assembly_dir
         .map { sample_id, dir -> tuple(sample_id, file("${dir}/assembly.fasta"))})
         .set { assembly_fasta }
 
     // Align reads to assembly and align assembly to ref
-    ALIGN_TO_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, assembly_fasta, params.platform)
+    ALIGN_TO_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out.join(assembly_fasta), params.platform)
     ALIGN_ASSEMBLY_TO_REF(assembly_fasta, minimap_index_ch, params.platform)
 
     // Methylation
@@ -149,7 +149,7 @@ workflow {
     // QC - coverage and read length
     MT_COVERAGE(FILTER_NUMTS.out.filtered_bam)
     COVERAGE_PLOT(MT_COVERAGE.out.per_base_bed)
-    MT_READ_LENGTH(FILTER_NUMTS.out.filtered_bam)
+    MT_READ_LENGTH(FILTERED_BAM_TO_FASTQ.out)
     READ_LENGTH_PLOT(MT_READ_LENGTH.out)
 
     // QC summary 
@@ -177,6 +177,8 @@ workflow {
     
     // SV Calling of assembly to reference
     VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(ALIGN_ASSEMBLY_TO_REF.out.bam)
+
+
 
     // Rotate assembly to match reference coordinates and realign MT reads to it
     //ROTATE_ASSEMBLY(assembly_fasta, ALIGN_ASSEMBLY_TO_REF.out.bam, MT_ASSEMBLY.out) 

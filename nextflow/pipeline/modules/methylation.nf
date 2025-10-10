@@ -37,9 +37,8 @@ process METH_PLOT {
     tuple val(sample_id), path(meth_freq_tsv)
 
     output:
-    path("${meth_freq_tsv.getBaseName()}.MT_methylation_by_pos.png")
-    path("${meth_freq_tsv.getBaseName()}.MT_methylation_by_site.png")
-    path("${meth_freq_tsv.getBaseName()}.MT_methylation_freq_histogram.png")
+    path("${meth_freq_tsv.getBaseName()}.meth_by_site.png")
+    path("${meth_freq_tsv.getBaseName()}.meth_freq_histogram.png")
 
     script:
     """

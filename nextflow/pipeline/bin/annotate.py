@@ -100,6 +100,7 @@ def read_vcf(input_file):
 input_file = args.input
 anno_file = args.annotations
 caller = args.caller
+input_prefix = os.path.join(os.path.dirname(input_file), re.sub(r"\.vcf.gz$", "", os.path.basename(input_file)))  
 
 ## read in and format MITOMAP anno file
 anno_df = pd.read_csv(anno_file)
@@ -114,43 +115,49 @@ anno_df = anno_df.drop(columns=['Position'])
 
 input_df = read_vcf(input_file)
 
-# remove blacklisted 3107 row
-input_df = input_df[input_df.POS != 3107]
+# in case vcf is empty output empty placeholders
+if (len(input_df) == 0):
+    input_df.to_csv(f"{input_prefix}.annotated.txt", sep='\t', index=False)
 
-if not args.multisample:
-    ## rename col names
-    input_df.columns=["CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMPLE"]
-
-    if caller == 'mutserve':
-        format_fields = ['GT', 'AF', 'BQ', 'DP']
-        input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True)
-    elif caller == 'mutect2':
-        format_fields = ['GT', 'AD', 'AF', 'DP']
-        input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True).iloc[:,:4]
-    elif caller == 'baldur':
-        format_fields = ['GT', 'ADF', 'ADR', 'AF', 'FQSE', 'AQ', 'AFLT', 'QAVG', 'FSB', 'QBS']
-        input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True)
-    else:
-        exit("--caller value is not recognized")
-
-    # Handle multiallelics where AF field was not split // currently only handles up to 2 multiallleic variants, revisit for cases of more
-    ## also should handle for multiallelic files too
-    input_df['AF'] = input_df.apply(resolve_af, axis=1)
-
-    input_df = input_df.drop(columns=['FORMAT', 'SAMPLE'])
-    input_df[['POS', 'AF']] = input_df[['POS', 'AF']].apply(pd.to_numeric, errors='raise')
-
-## reformat deletions to match MITOMAP formatting (TC-T to C-del)
-input_df[['POS', 'REF', 'ALT']] = input_df.apply(reformat_dels, axis=1, result_type='expand')
-
-## merge input df with anno df
-merged_df = pd.merge(input_df, anno_df, how="left", on=["POS", "REF", "ALT"])
-merged_df['DiseaseVariantStatus'] = merged_df['Source'].apply(get_variant_status)
-
-## output annotated file and heteroplasmy plot
-input_prefix = os.path.join(os.path.dirname(input_file), re.sub(r"\.vcf.gz$", "", os.path.basename(input_file)))  
-merged_df.to_csv(f"{input_prefix}.annotated.txt", sep='\t', index=False)
-
-if not args.multisample:
-    fig = create_heteroplasmy_plot(merged_df)
+    fig = plt.figure()
     fig.savefig(f"{input_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
+else:
+    # remove blacklisted 3107 row
+    input_df = input_df[input_df.POS != 3107]
+
+    if not args.multisample:
+        ## rename col names
+        input_df.columns=["CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMPLE"]
+
+        if caller == 'mutserve':
+            format_fields = ['GT', 'AF', 'BQ', 'DP']
+            input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True)
+        elif caller == 'mutect2':
+            format_fields = ['GT', 'AD', 'AF', 'DP']
+            input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True).iloc[:,:4]
+        elif caller == 'baldur':
+            format_fields = ['GT', 'ADF', 'ADR', 'AF', 'FQSE', 'AQ', 'AFLT', 'QAVG', 'FSB', 'QBS']
+            input_df[format_fields] = input_df['SAMPLE'].str.split(':', expand=True)
+        else:
+            exit("--caller value is not recognized")
+
+        # Handle multiallelics where AF field was not split // currently only handles up to 2 multiallleic variants, revisit for cases of more
+        ## also should handle for multiallelic files too
+        input_df['AF'] = input_df.apply(resolve_af, axis=1)
+
+        input_df = input_df.drop(columns=['FORMAT', 'SAMPLE'])
+        input_df[['POS', 'AF']] = input_df[['POS', 'AF']].apply(pd.to_numeric, errors='raise')
+
+    ## reformat deletions to match MITOMAP formatting (TC-T to C-del)
+    input_df[['POS', 'REF', 'ALT']] = input_df.apply(reformat_dels, axis=1, result_type='expand')
+
+    ## merge input df with anno df
+    merged_df = pd.merge(input_df, anno_df, how="left", on=["POS", "REF", "ALT"])
+    merged_df['DiseaseVariantStatus'] = merged_df['Source'].apply(get_variant_status)
+
+    ## output annotated file and heteroplasmy plot
+    merged_df.to_csv(f"{input_prefix}.annotated.txt", sep='\t', index=False)
+
+    if not args.multisample:
+        fig = create_heteroplasmy_plot(merged_df)
+        fig.savefig(f"{input_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')

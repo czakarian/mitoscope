@@ -35,7 +35,7 @@ def plot_coverage(input, outprefix):
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(outprefix + '.mitochondrial_coverage.png', dpi=300)
-    plt.show()
+    plt.close()
 
 
 def plot_read_lengths(input, outprefix):
@@ -43,53 +43,62 @@ def plot_read_lengths(input, outprefix):
     read_lengths = pd.read_csv(input, header=None, names=['length'])
 
     plt.figure(figsize=(10,6))
-    sns.histplot(read_lengths['length'], bins=100, kde=True, color='skyblue')
-
+    sns.histplot(read_lengths['length'], bins=100, kde=True, color='blue', edgecolor=None)
     plt.title('Read Length Distribution')
     plt.xlabel('Read Length (bp)')
     plt.ylabel('Count')
-    plt.grid(True)
-    plt.tight_layout()
-
+    #plt.tight_layout()
     plt.savefig(outprefix + '.read_length_distribution.png', dpi=300)
-    plt.show()
+    plt.close()
 
 def plot_methylation(input, outprefix):
-    # Load minimod bedmethyl file 
+
+    # Load minimod file
     df = pd.read_csv(input, sep='\t').sort_values('start')
-    df['index'] = range(0, len(df))
 
-    plt.figure(figsize=(15, 4))
-    plt.scatter(df['start'], df['freq'], color='blue', s=10)
-    plt.xlabel('Position')
-    plt.ylabel('% mtDNA methylation')
-    plt.ylim(0,1)
-    #plt.title('Average methylation levels across MT genome')
-    #plt.grid(True)
+    df_aligned = df.copy()
+    # shift the '-' strand positions by -1 to merge across strands 
+    df_aligned.loc[df_aligned["strand"] == "-", "start"] -= 1
+    df_combined = df_aligned.groupby("start", as_index=False).agg({"n_called": "sum", "n_mod": "sum"})
+    # recompute methylation frequency
+    df_combined["freq"] = df_combined["n_mod"] / df_combined["n_called"]
+
+    # smoothed frequency
+    df_combined = df_combined.sort_values("start")
+    df_combined["freq_smooth"] = df_combined["freq"].rolling(window=10, center=True, min_periods=1).mean()
+    df_combined['index'] = range(0, len(df_combined))
+
+    ## output strand merged tsv?
+
+    ## plot %meth by position and by CpG index
+    fig, axes = plt.subplots(3, 1, figsize=(15, 8), sharey=False)
+    sns.scatterplot(data=df_combined,x="start",y="n_called",s=8,ax=axes[0])
+    axes[0].set_ylabel("Coverage")
+    axes[0].set_xlabel("MT Genome Position")
+    #axes[0].set_ylim(0, 1)
+    sns.lineplot(ax=axes[1], data=df_combined, x="index", y="freq", linewidth=1.5)
+    axes[1].set_xlabel("CpG Sites")
+    axes[1].set_ylabel("% Methylation")
+    axes[1].set_ylim(0, 1)
+    sns.lineplot(ax=axes[2], data=df_combined, x="index", y="freq_smooth", linewidth=1.5)
+    axes[2].set_xlabel("CpG Sites")
+    axes[2].set_ylabel("% Methylation (smoothed)")
+    axes[2].set_ylim(0, 1)
     plt.tight_layout()
-    plt.savefig(outprefix + '.MT_methylation_by_pos.png', dpi=300)
+    plt.savefig(outprefix + ".meth_by_site.png", dpi=300)
     plt.show()
 
-    plt.figure(figsize=(15, 4))
-    plt.bar(df['index'], df['freq'], color='blue', width=1)
-    plt.xlabel('CpG Sites')
-    plt.ylabel('% mtDNA methylation')
-    plt.ylim(0,1)
-    #plt.title('Average methylation levels across MT genome')
-    #plt.grid(True)
-    plt.tight_layout()
-    #plt.xticks([])
-    plt.savefig(outprefix + '.MT_methylation_by_site.png', dpi=300)
-    plt.show()
-
+    ## plot histogram of %meth frequencies
     plt.figure(figsize=(6, 4))
-    plt.hist(df['freq'], bins=50, color='blue')
+    sns.histplot(df['freq'], bins=50, kde=True, color='blue', edgecolor=None)
     plt.xlabel('Fraction mtDNA methylation')
     plt.ylabel('# of CpG Sites')
     plt.xlim(0,1)
-    #plt.grid(True)
-    plt.savefig(outprefix + '.MT_methylation_freq_histogram.png', dpi=300)
-    plt.show()
+    plt.tight_layout()
+    plt.savefig(outprefix + '.meth_freq_histogram.png', dpi=300)
+    plt.close()
+
+
 
 
 if args.plot == 'coverage':

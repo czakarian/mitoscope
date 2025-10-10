@@ -35,8 +35,7 @@ process ALIGN_TO_ASSEMBLY {
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(fastq_file)
-    tuple val(sample_id), path(assembly_fasta), path(assembly_fasta_fai)
+    tuple val(sample_id), path(fastq_file), path(assembly_fasta), path(assembly_fasta_fai)
     val platform
 
     output:

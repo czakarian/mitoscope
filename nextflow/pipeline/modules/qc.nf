@@ -23,20 +23,19 @@ process MT_COVERAGE {
 process MT_READ_LENGTH {
 
     publishDir "${params.outdir}/${sample_id}/qc/read_length", mode: 'copy'
-    container params.samtools
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(input_bam), path(input_bam_index)
+    tuple val(sample_id), path(input_fastq)
 
     output:
-    tuple val(sample_id), path("${input_bam.getBaseName()}.read_lengths.txt")
+    tuple val(sample_id), path("${input_fastq.getBaseName(2)}.read_lengths.txt")
 
     script:
     """
     set -euo pipefail
 
-    samtools view ${input_bam} | awk '{print length(\$10)}' > "${input_bam.getBaseName()}.read_lengths.txt"
+    zcat ${input_fastq} | sed -n '2~4p'  | awk '{print length(\$0)}' > "${input_fastq.getBaseName(2)}.read_lengths.txt"
     """
 
 }
