@@ -23,7 +23,7 @@ include { MT_ASSEMBLY; ROTATE_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ROTATED_ASSEMBLY} from './modules/assembly.nf'
 include { METH_FREQ; METH_PLOT} from './modules/methylation.nf'
-include { MT_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; READ_LENGTH_PLOT; QC_SUMMARY; COMBINE_QC_SUMMARY} from './modules/qc.nf'
+include { MT_COVERAGE; NUCLEAR_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; READ_LENGTH_PLOT; QC_SUMMARY; COMBINE_QC_SUMMARY} from './modules/qc.nf'
 include { VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR;
           VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR_ASSEMBLY; 
           NORMALIZE_BALDUR_VCF as NORMALIZE_BALDUR_VCF;
@@ -41,9 +41,8 @@ include { VARIANT_CALLS_MUTSERVE as VARIANT_CALLS_MUTSERVE;
 include { VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES; 
           VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY;
           VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF;
-          FILTER_SNIFFLES_VCF_MINSUPPORT as FILTER_SNIFFLES_VCF_MINSUPPORT;
-          FILTER_SNIFFLES_VCF_MINSUPPORT as FILTER_SNIFFLES_VCF_MINSUPPORT_ASSEMBLY;
-          FILTER_SNIFFLES_VCF_MINSUPPORT as FILTER_SNIFFLES_VCF_MINSUPPORT_ASSEMBLY_TO_REF} from './modules/variant_calling.nf'
+          FILTER_SNIFFLES_VCF as FILTER_SNIFFLES_VCF;
+          FILTER_SNIFFLES_VCF as FILTER_SNIFFLES_VCF_ASSEMBLY} from './modules/variant_calling.nf'
 include { HAPLOGREP; HAPLOCHECK} from './modules/haplo.nf'
 
 workflow {
@@ -109,6 +108,7 @@ workflow {
         } else if (params.input_type == 'cram') {
             fastq_out = ALIGNED_CRAM_TO_FASTQ(samples_ch, params.reference)
             fastq_gz_out = COMPRESS_FASTQ(fastq_out)
+            NUCLEAR_COVERAGE(samples_ch, params.reference)
         } 
     } else {
         if (params.input_type == 'bam') {
@@ -153,7 +153,7 @@ workflow {
     READ_LENGTH_PLOT(MT_READ_LENGTH.out)
 
     // QC summary 
-    QC_SUMMARY(MT_COVERAGE.out.mosdepth_summary, MT_READ_LENGTH.out, METH_FREQ.out.minimod_tsv)
+    QC_SUMMARY(MT_COVERAGE.out.mosdepth_summary.join(MT_READ_LENGTH.out).join(METH_FREQ.out.minimod_tsv).join(NUCLEAR_COVERAGE.out.mosdepth_summary))
     COMBINE_QC_SUMMARY(QC_SUMMARY.out.collect())
 
     // SNV/indel/del variant calling (baldur) on reference
@@ -173,7 +173,7 @@ workflow {
 
     // SV Calling on reference
     VARIANT_CALLS_SNIFFLES(FILTER_NUMTS.out.filtered_bam)
-    FILTER_SNIFFLES_VCF_MINSUPPORT(VARIANT_CALLS_SNIFFLES.out.vcf)
+    FILTER_SNIFFLES_VCF(VARIANT_CALLS_SNIFFLES.out.vcf)
     
     // SV Calling of assembly to reference
     VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(ALIGN_ASSEMBLY_TO_REF.out.bam)
@@ -201,7 +201,7 @@ workflow {
 
     // // SV Calling on rotated assembly
     // VARIANT_CALLS_SNIFFLES_ASSEMBLY(mt_align_rotated_assembly_bam)
-    // FILTER_SNIFFLES_VCF_MINSUPPORT_ASSEMBLY(VARIANT_CALLS_SNIFFLES_ASSEMBLY.out.sniffles_vcf)
+    // FILTER_SNIFFLES_VCF_ASSEMBLY(VARIANT_CALLS_SNIFFLES_ASSEMBLY.out.sniffles_vcf)
 
 
 }

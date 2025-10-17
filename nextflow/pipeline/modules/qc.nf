@@ -20,6 +20,27 @@ process MT_COVERAGE {
 
 }
 
+process NUCLEAR_COVERAGE {
+
+    publishDir "${params.outdir}/${sample_id}/qc/coverage/nuclear", mode: 'copy'
+    container params.mosdepth
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(input_cram), path(input_cram_index)
+    path ref
+
+    output:
+    tuple val(sample_id), path("${sample_id}.mosdepth.summary.txt"), emit: mosdepth_summary
+
+    script:
+    """
+    set -euo pipefail
+
+    mosdepth ${sample_id} ${input_cram} --fasta ${ref} --no-per-base --fast-mode
+    """
+}
+
 process MT_READ_LENGTH {
 
     publishDir "${params.outdir}/${sample_id}/qc/read_length", mode: 'copy'
@@ -84,14 +105,12 @@ process READ_LENGTH_PLOT {
 
 process QC_SUMMARY {
     
-    // publishDir "${params.outdir}/${sample_id}/qc/", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/qc/", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(mosdepth_summary_file)
-    tuple val(sample_id), path(read_lengths_file)
-    tuple val(sample_id), path(minimod_file)
+    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(minimod_file), path(nuclear_coverage_file)
 
     output:
     path("${sample_id}.qc_summary.tsv")
@@ -101,6 +120,7 @@ process QC_SUMMARY {
     -c ${mosdepth_summary_file} \
     -r ${read_lengths_file} \
     -m ${minimod_file} \
+    -n ${nuclear_coverage_file} \
     -s ${sample_id}
     """
 }

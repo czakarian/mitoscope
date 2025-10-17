@@ -222,6 +222,7 @@ process VARIANT_CALLS_SNIFFLES {
     set -euo pipefail
 
     sniffles --qc-output-all \
+    --minsvlen 5 \
     --minsupport ${params.min_sv_support} \
     --input ${input_bam} \
     --vcf ${input_bam.getBaseName()}.sniffles.vcf
@@ -229,7 +230,7 @@ process VARIANT_CALLS_SNIFFLES {
 }
 
 
-process FILTER_SNIFFLES_VCF_MINSUPPORT {
+process FILTER_SNIFFLES_VCF {
     
     publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_assembly", pattern: "*filtered.assembly_rotated.sniffles*", mode: 'copy'
     publishDir "${params.outdir}/${sample_id}/variants/sniffles/to_ref", pattern: "*filtered.sniffles*", mode: 'copy'
@@ -240,13 +241,16 @@ process FILTER_SNIFFLES_VCF_MINSUPPORT {
     tuple val(sample_id), path(sniffles_vcf)
 
     output:
-    tuple val(sample_id), path("${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.vcf")
+    tuple val(sample_id), path("${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.svlen5.vcf")
+    tuple val(sample_id), path("${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.svlen50.vcf")
+
 
     script:
     """
     set -euo pipefail
 
-    bcftools filter -i "SUPPORT>=${params.min_sv_support}" ${sniffles_vcf} > ${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.vcf
+    bcftools filter -i "SUPPORT>=${params.min_sv_support} && (SVLEN>=50 || SVLEN<=-50)" ${sniffles_vcf} > ${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.svlen50.vcf
+    bcftools filter -i "SUPPORT>=${params.min_sv_support} && ((SVLEN>=5 && SVLEN<50) || (SVLEN<=-5 && SVLEN>-50))" ${sniffles_vcf} > ${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.svlen5.vcf
 
     """
 }

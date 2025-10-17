@@ -9,6 +9,7 @@ def get_args():
     parser.add_argument("-c", "--mosdepth_file", help="Mosdepth summary file.", required=True)
     parser.add_argument("-r", "--read_lengths_file", help="File of MT read lengths", required=True)
     parser.add_argument("-m", "--meth_file", help="Methylation output file.", required=True)
+    parser.add_argument("-n", "--nuclear_coverage_file", help="Mosdepth summary file for nuclear genome", required=True)
     parser.add_argument("-s", "--sample_id", help="Sample ID to use in output", required=True)
     return parser.parse_args()
 args = get_args()
@@ -16,6 +17,9 @@ args = get_args()
 # === Coverage (mosdepth summary) ===
 mosdepth_sum_df = pd.read_csv(args.mosdepth_file, sep='\t')
 mean_cov = mosdepth_sum_df[mosdepth_sum_df['chrom'] == 'MT']['mean'].iloc[0]
+
+nuc_cov_df = pd.read_csv(args.nuclear_coverage_file, sep='\t')
+nuc_cov = nuc_cov_df[nuc_cov_df['chrom'] == 'total']['mean'].iloc[0]
 
 # === Read lengths ===
 read_lengths = np.loadtxt(args.read_lengths_file, dtype=int)
@@ -35,8 +39,9 @@ out_file = f"{args.sample_id}.qc_summary.tsv"
 with open(out_file, "w") as out:
     out.write(
         "Sample\t"
-        "Read_Count\t"
-        "Mean_Coverage\t"
+        "Mito_Read_Count\t"
+        "Mito_Coverage\t"
+        "Nuclear_Coverage\t"
         "Mean_Read_Length\t"
         "Mean_Meth_Fraction\t"
         "Fraction_Meth_Sites_GT1\t"
@@ -48,6 +53,7 @@ with open(out_file, "w") as out:
         f"{args.sample_id}\t"
         f"{read_count}\t"
         f"{mean_cov}\t"
+        f"{nuc_cov}\t"
         f"{avg_length:.2f}\t"
         f"{avg_meth:.4f}\t"
         f"{meth_gt_1:.4f}\t"
