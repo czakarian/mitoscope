@@ -10,6 +10,8 @@ def get_args():
     parser.add_argument("-r", "--read_lengths_file", help="File of MT read lengths", required=True)
     parser.add_argument("-m", "--meth_file", help="Methylation output file.", required=True)
     parser.add_argument("-n", "--nuclear_coverage_file", help="Mosdepth summary file for nuclear genome", required=True)
+    parser.add_argument("-a", "--assembly_info_file", help="Flye assembly_info.txt", required=True)
+    parser.add_argument("-d", "--assembly_num_downsample", help="Number of downsampled reads used for assembly", required=True)
     parser.add_argument("-s", "--sample_id", help="Sample ID to use in output", required=True)
     return parser.parse_args()
 args = get_args()
@@ -26,6 +28,12 @@ read_lengths = np.loadtxt(args.read_lengths_file, dtype=int)
 read_count = len(read_lengths)
 avg_length = read_lengths.mean()
 
+# == MtDNA copies ===
+assembly_df = pd.read_csv(args.assembly_info_file, sep='\t')
+downsampled_cov = assembly_df.iloc[0,2]
+mtdna_cn = downsampled_cov * (read_count / int(args.assembly_num_downsample))
+print(mtdna_cn)
+
 # === Methylation stats ===
 meth_df = pd.read_csv(args.meth_file, sep="\t")
 avg_meth = meth_df.iloc[1:, 6].mean()      # column 7 (0-based idx=6), skip header
@@ -41,6 +49,7 @@ with open(out_file, "w") as out:
         "Sample\t"
         "Mito_Read_Count\t"
         "Mito_Coverage\t"
+        "mtDNA_CN\t"
         "Nuclear_Coverage\t"
         "Mean_Read_Length\t"
         "Mean_Meth_Fraction\t"
@@ -53,6 +62,7 @@ with open(out_file, "w") as out:
         f"{args.sample_id}\t"
         f"{read_count}\t"
         f"{mean_cov}\t"
+        f"{mtdna_cn}\t"
         f"{nuc_cov}\t"
         f"{avg_length:.2f}\t"
         f"{avg_meth:.4f}\t"

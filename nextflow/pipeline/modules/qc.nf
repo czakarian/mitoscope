@@ -110,7 +110,7 @@ process QC_SUMMARY {
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(minimod_file), path(nuclear_coverage_file)
+    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(minimod_file), path(nuclear_coverage_file), path(assembly_info_file)
 
     output:
     path("${sample_id}.qc_summary.tsv")
@@ -121,6 +121,8 @@ process QC_SUMMARY {
     -r ${read_lengths_file} \
     -m ${minimod_file} \
     -n ${nuclear_coverage_file} \
+    -a ${assembly_info_file} \
+    -d ${params.num_downsampled_reads} \
     -s ${sample_id}
     """
 }

@@ -19,9 +19,11 @@ process VARIANT_CALLS_BALDUR {
 
     baldur -l debug \
     --output-deletions \
+    --small-deletion-limit 20 \
+    --large-deletion-limit 20 \
+    -q 20 -Q 20 \
     -T ${mt_ref} \
     -n ${sample_id} \
-    -q 20 -Q 20 --view \
     -o "${input_bam.getBaseName()}.baldur" \
     ${input_bam} 
     """
@@ -216,6 +218,7 @@ process VARIANT_CALLS_SNIFFLES {
 
     output:
     tuple val(sample_id), path("${input_bam.getBaseName()}.sniffles.vcf"), emit: vcf
+    tuple val(sample_id), path("${input_bam.getBaseName()}.sniffles.snf"), emit: snf
 
     script:
     """
@@ -224,8 +227,11 @@ process VARIANT_CALLS_SNIFFLES {
     sniffles --qc-output-all \
     --minsvlen 5 \
     --minsupport ${params.min_sv_support} \
+    --threads ${task.cpus} \
     --input ${input_bam} \
+    --snf ${input_bam.getBaseName()}.sniffles.snf \
     --vcf ${input_bam.getBaseName()}.sniffles.vcf
+
     """
 }
 
@@ -253,4 +259,30 @@ process FILTER_SNIFFLES_VCF {
     bcftools filter -i "SUPPORT>=${params.min_sv_support} && ((SVLEN>=5 && SVLEN<50) || (SVLEN<=-5 && SVLEN>-50))" ${sniffles_vcf} > ${sniffles_vcf.getBaseName()}.ge${params.min_sv_support}.svlen5.vcf
 
     """
+}
+
+process COMBINE_SV_CALLS {
+
+    publishDir "${params.outdir}/", mode: 'copy'
+    container params.sniffles
+
+    input:
+    path snf_files
+
+    output:
+    path "multisample.sniffles.vcf"
+
+    script:
+    """
+    sniffles \
+    --minsvlen 5 \
+    --combine-low-confidence 0 \
+    --combine-low-confidence-abs 0 \
+    --combine-null-min-coverage 1 \
+    --combine-output-filtered \
+    --combine-pair-relabel \
+    --input ${snf_files} \
+    --vcf multisample.sniffles.vcf
+    """
+
 }

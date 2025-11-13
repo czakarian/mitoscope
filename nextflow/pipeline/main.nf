@@ -23,7 +23,8 @@ include { MT_ASSEMBLY; ROTATE_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ROTATED_ASSEMBLY} from './modules/assembly.nf'
 include { METH_FREQ; METH_PLOT} from './modules/methylation.nf'
-include { MT_COVERAGE; NUCLEAR_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; READ_LENGTH_PLOT; QC_SUMMARY; COMBINE_QC_SUMMARY} from './modules/qc.nf'
+include { MT_COVERAGE; NUCLEAR_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; 
+          READ_LENGTH_PLOT; QC_SUMMARY; COMBINE_QC_SUMMARY} from './modules/qc.nf'
 include { VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR;
           VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR_ASSEMBLY; 
           NORMALIZE_BALDUR_VCF as NORMALIZE_BALDUR_VCF;
@@ -42,8 +43,12 @@ include { VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES;
           VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY;
           VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF;
           FILTER_SNIFFLES_VCF as FILTER_SNIFFLES_VCF;
-          FILTER_SNIFFLES_VCF as FILTER_SNIFFLES_VCF_ASSEMBLY} from './modules/variant_calling.nf'
+          FILTER_SNIFFLES_VCF as FILTER_SNIFFLES_VCF_ASSEMBLY;
+          COMBINE_SV_CALLS} from './modules/variant_calling.nf'
 include { HAPLOGREP; HAPLOCHECK} from './modules/haplo.nf'
+include { NUMT_DETECTION_SNIFFLES; NUMT_DETECTION_INSERTIONS_TO_FASTA; NUMT_DETECTION_INSERTIONS_BLAST; 
+          NUMT_DETECTION_SUPPLEMENTARY; NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES; NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES_FILTER;
+          NUMT_DETECTION_PLOT; NUMT_DETECTION_MTDNA_INSERTIONS_TO_FASTA; NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK } from './modules/numt_detection.nf'
 
 workflow {
 
@@ -69,6 +74,14 @@ workflow {
     Channel.fromPath(params.mitomap_anno_file)
         .first()
         .set { mitomap_anno_file_ch }
+
+    Channel.fromPath(params.blast_db)
+        .first()
+        .set { blast_db_ch }
+
+    Channel.fromPath(params.circos_bed)
+        .first()
+        .set { circos_bed_ch }
     
     if (params.platform == "pb") {
         Channel.fromPath(params.mt_mmi_hifi, checkIfExists: true)
@@ -109,6 +122,15 @@ workflow {
             fastq_out = ALIGNED_CRAM_TO_FASTQ(samples_ch, params.reference)
             fastq_gz_out = COMPRESS_FASTQ(fastq_out)
             NUCLEAR_COVERAGE(samples_ch, params.reference)
+            NUMT_DETECTION_SNIFFLES(samples_ch, params.reference)
+            NUMT_DETECTION_INSERTIONS_TO_FASTA(NUMT_DETECTION_SNIFFLES.out.vcf)
+            NUMT_DETECTION_INSERTIONS_BLAST(NUMT_DETECTION_INSERTIONS_TO_FASTA.out.fasta, blast_db_ch)
+            NUMT_DETECTION_MTDNA_INSERTIONS_TO_FASTA(NUMT_DETECTION_INSERTIONS_TO_FASTA.out.fasta.join(NUMT_DETECTION_INSERTIONS_BLAST.out))
+            NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK(NUMT_DETECTION_MTDNA_INSERTIONS_TO_FASTA.out, blast_db_ch)
+            NUMT_DETECTION_SUPPLEMENTARY(samples_ch, params.reference)
+            //NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES(NUMT_DETECTION_SUPPLEMENTARY.out, params.reference)
+            //NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES_FILTER(NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES.out.vcf)
+            NUMT_DETECTION_PLOT(NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK.out, circos_bed_ch)
         } 
     } else {
         if (params.input_type == 'bam') {
@@ -152,8 +174,13 @@ workflow {
     MT_READ_LENGTH(FILTERED_BAM_TO_FASTQ.out)
     READ_LENGTH_PLOT(MT_READ_LENGTH.out)
 
+    // Grab assembly info file to calculate # mtDNA copies
+    MT_ASSEMBLY.out.assembly_dir
+        .map { sample_id, dir -> tuple(sample_id, file("${dir}/assembly_info.txt"))}
+        .set { assembly_info}
+    
     // QC summary 
-    QC_SUMMARY(MT_COVERAGE.out.mosdepth_summary.join(MT_READ_LENGTH.out).join(METH_FREQ.out.minimod_tsv).join(NUCLEAR_COVERAGE.out.mosdepth_summary))
+    QC_SUMMARY(MT_COVERAGE.out.mosdepth_summary.join(MT_READ_LENGTH.out).join(METH_FREQ.out.minimod_tsv).join(NUCLEAR_COVERAGE.out.mosdepth_summary).join(assembly_info))
     COMBINE_QC_SUMMARY(QC_SUMMARY.out.collect())
 
     // SNV/indel/del variant calling (baldur) on reference
@@ -178,7 +205,8 @@ workflow {
     // SV Calling of assembly to reference
     VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(ALIGN_ASSEMBLY_TO_REF.out.bam)
 
-
+    // Generate multiple sniffles vcf across samples 
+    COMBINE_SV_CALLS(VARIANT_CALLS_SNIFFLES.out.snf.map { it[1]}.collect())
 
     // Rotate assembly to match reference coordinates and realign MT reads to it
     //ROTATE_ASSEMBLY(assembly_fasta, ALIGN_ASSEMBLY_TO_REF.out.bam, MT_ASSEMBLY.out) 
@@ -187,17 +215,6 @@ workflow {
     // // Align reads to rotated assembly and align rotated assembly to ref
     // ALIGN_TO_ROTATED_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, rotated_assembly_fasta, params.platform).set{ mt_align_rotated_assembly_bam }
     // ALIGN_ROTATED_ASSEMBLY_TO_REF(rotated_assembly_fasta, minimap_index_ch, params.platform)
-
-    // // variant calling (baldur) on rotated assembly
-    // VARIANT_CALLS_BALDUR_ASSEMBLY(mt_align_rotated_assembly_bam, rotated_assembly_fasta, sample_id_ch)
-    // NORMALIZE_BALDUR_VCF_ASSEMBLY(VARIANT_CALLS_BALDUR_ASSEMBLY.out.baldur_vcf)
-    // ANNOTATE_BALDUR_INDELS_ASSEMBLY(NORMALIZE_BALDUR_VCF_ASSEMBLY.out.baldur_norm_indels_vcf, mitomap_anno_file_ch)
-    // ANNOTATE_BALDUR_SNVS_ASSEMBLY(NORMALIZE_BALDUR_VCF_ASSEMBLY.out.baldur_norm_snvs_vcf, mitomap_anno_file_ch)
-
-    // // SNV variant calling (mutserve) on rotated assembly
-    // VARIANT_CALLS_MUTSERVE_ASSEMBLY(mt_align_rotated_assembly_bam, rotated_assembly_fasta, sample_id_ch, Channel.value("contig_1_rotated"))
-    // NORMALIZE_MUTSERVE_VCF_ASSEMBLY(VARIANT_CALLS_MUTSERVE_ASSEMBLY.out.mutserve_vcf)
-    // ANNOTATE_MUTSERVE_VCF_ASSEMBLY(NORMALIZE_MUTSERVE_VCF_ASSEMBLY.out.mutserve_norm_vcf, mitomap_anno_file_ch)
 
     // // SV Calling on rotated assembly
     // VARIANT_CALLS_SNIFFLES_ASSEMBLY(mt_align_rotated_assembly_bam)

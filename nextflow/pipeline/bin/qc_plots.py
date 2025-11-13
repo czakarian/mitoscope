@@ -59,7 +59,7 @@ def plot_methylation(input, outprefix):
     df_aligned = df.copy()
     # shift the '-' strand positions by -1 to merge across strands 
     df_aligned.loc[df_aligned["strand"] == "-", "start"] -= 1
-    df_combined = df_aligned.groupby("start", as_index=False).agg({"n_called": "sum", "n_mod": "sum"})
+    df_combined = df_aligned.groupby(["start", "mod_code"], as_index=False).agg({"n_called": "sum", "n_mod": "sum"})
     # recompute methylation frequency
     df_combined["freq"] = df_combined["n_mod"] / df_combined["n_called"]
 
@@ -69,21 +69,22 @@ def plot_methylation(input, outprefix):
     df_combined['index'] = range(0, len(df_combined))
 
     ## output strand merged tsv?
+    df_combined.to_csv('meth.csv', index=False)
 
     ## plot %meth by position and by CpG index
     fig, axes = plt.subplots(3, 1, figsize=(15, 8), sharey=False)
-    sns.scatterplot(data=df_combined,x="start",y="n_called",s=8,ax=axes[0])
+    sns.scatterplot(data=df_combined,x="start",y="n_called",hue="mod_code", s=8, ax=axes[0])
     axes[0].set_ylabel("Coverage")
     axes[0].set_xlabel("MT Genome Position")
     #axes[0].set_ylim(0, 1)
-    sns.lineplot(ax=axes[1], data=df_combined, x="index", y="freq", linewidth=1.5)
+    sns.lineplot(ax=axes[1], data=df_combined, x="index", y="freq", hue="mod_code", linewidth=1.5)
     axes[1].set_xlabel("CpG Sites")
     axes[1].set_ylabel("% Methylation")
-    axes[1].set_ylim(0, 1)
-    sns.lineplot(ax=axes[2], data=df_combined, x="index", y="freq_smooth", linewidth=1.5)
+    axes[1].set_ylim(0, 0.2)
+    sns.lineplot(ax=axes[2], data=df_combined, x="index", y="freq_smooth", hue="mod_code", linewidth=1.5)
     axes[2].set_xlabel("CpG Sites")
     axes[2].set_ylabel("% Methylation (smoothed)")
-    axes[2].set_ylim(0, 1)
+    axes[2].set_ylim(0, 0.2)
     plt.tight_layout()
     plt.savefig(outprefix + ".meth_by_site.png", dpi=300)
     plt.show()

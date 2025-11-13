@@ -1,0 +1,51 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%labels
+    Author Christina
+    Version 1.0
+
+%environment
+    export PATH=/opt/bin:$PATH
+
+%post
+    #!/bin/bash
+    set -eu pipefail
+    
+    echo "===== Installing base dependencies ====="
+    apt-get update && apt-get install -y \
+        build-essential \
+        curl \
+        wget \
+        git \
+        zlib1g-dev \
+        libbz2-dev \
+        liblzma-dev \
+        libncurses5-dev \
+        libncursesw5-dev \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        autoconf \
+        automake \
+        cmake \
+        make \
+        unzip \
+        default-jre \
+        openjdk-17-jdk 
+
+    mkdir -p /opt/bin
+
+    echo "===== Installing minimod ====="
+    MINIMOD_HASH=6805b5b
+    cd /opt && \
+    git clone https://github.com/warp9seq/minimod && \
+    cd minimod && \
+    git checkout ${MINIMOD_HASH} && \
+    scripts/install-hts.sh && \
+    make && \
+    ln -s /opt/minimod/minimod /opt/bin/minimod
+
+    #########
+
+    echo "===== Cleaning up ====="
+    apt-get clean && rm -rf /var/lib/apt/lists/*
