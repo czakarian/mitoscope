@@ -1,6 +1,6 @@
-samplesheet: "samples.csv" # 2 column csv with sample_id,sample_file
-input_type: 'cram' # set to bam, cram, fastq, or fastq.gz
+samplesheet: "samples.csv" # path to 2-column headerless csv file with: sample_id,sample_file
+input_type: 'cram' # set to either 'bam', 'cram', 'fastq', or 'fastq.gz'
 is_aligned: true # set to true if aligned bam or cram, otherwise false
 platform: "pb" # pb or ont
-outdir: "/path/to/output/dir/result" # output directory for results
-reference: "/path/to/ref/for/cram/GRCH38.fa" # for crams only, provide path to reference used to generate. Otherwise, set to null.
+outdir: "/path/to/output/dir/result" # path to an existing output directory 
+reference: "/path/to/ref/for/cram/GRCH38.fa" # path to reference genome (only required for bam/cram inputs, otherwise set to null)

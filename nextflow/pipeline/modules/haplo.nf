@@ -7,7 +7,9 @@ process HAPLOGREP {
     tuple val(sample_id), path(mutserve_vcf)
 
     output:
-    path("${mutserve_vcf.getBaseName(2)}.haplogrep.*")
+    tuple val(sample_id), path("${mutserve_vcf.getBaseName(2)}.haplogrep.txt"), emit: haplogrep_txt
+    tuple val(sample_id), path("${mutserve_vcf.getBaseName(2)}.haplogrep.qc.txt"), emit: haplogrep_qc
+
 
     script:
     """
@@ -22,7 +24,8 @@ process HAPLOGREP {
 }
 
 process HAPLOCHECK {
-    publishDir "${params.outdir}/${sample_id}/qc/haplogroup", mode: 'copy'
+    publishDir path:"${params.outdir}/${sample_id}/qc/haplogroup", pattern: "*.txt", mode: 'copy'
+
     container params.haplocheck
     tag "${sample_id}"
 

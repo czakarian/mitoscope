@@ -24,7 +24,7 @@ include { MT_ASSEMBLY; ROTATE_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ROTATED_ASSEMBLY} from './modules/assembly.nf'
 include { METH_FREQ; METH_PLOT} from './modules/methylation.nf'
 include { MT_COVERAGE; NUCLEAR_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; 
-          READ_LENGTH_PLOT; QC_SUMMARY; COMBINE_QC_SUMMARY} from './modules/qc.nf'
+          READ_LENGTH_PLOT; QC_SUMMARY; QC_SUMMARY_FOR_UNALIGNED_INPUT; COMBINE_QC_SUMMARY} from './modules/qc.nf'
 include { VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR;
           VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR_ASSEMBLY; 
           NORMALIZE_BALDUR_VCF as NORMALIZE_BALDUR_VCF;
@@ -53,7 +53,7 @@ include { NUMT_DETECTION_SNIFFLES; NUMT_DETECTION_INSERTIONS_TO_FASTA; NUMT_DETE
 workflow {
 
     // Check for required parameters
-    if (!params.samplesheet || !params.input_type || !params.is_aligned || !params.outdir || !params.platform) {
+    if (!params.samplesheet || !params.input_type || !params.outdir || !params.platform || !params.reference) {
         error "Missing one of required parameters: samplesheet, input_type, is_aligned, outdir, platform"
     }
 
@@ -97,10 +97,10 @@ workflow {
 
     // read in sample sheet
     Channel
-        .fromPath(params.samplesheet) // Path to your samplesheet
-        .splitCsv(header: true) // Split into a channel of maps, using header
+        .fromPath(params.samplesheet) 
+        .splitCsv(header: ['sample_id', 'sample_file'])
         .map { row -> 
-            def index_file  = null
+            def index_file  = ""
             def sample_file = file(row.sample_file)
             // Only assign index file if aligned BAM or CRAM
             if (params.is_aligned) {
@@ -121,7 +121,11 @@ workflow {
         } else if (params.input_type == 'cram') {
             fastq_out = ALIGNED_CRAM_TO_FASTQ(samples_ch, params.reference)
             fastq_gz_out = COMPRESS_FASTQ(fastq_out)
+        } 
+        if (params.check_nuclear_coverage) {
             NUCLEAR_COVERAGE(samples_ch, params.reference)
+        }
+        if (params.numt_profiling) {
             NUMT_DETECTION_SNIFFLES(samples_ch, params.reference)
             NUMT_DETECTION_INSERTIONS_TO_FASTA(NUMT_DETECTION_SNIFFLES.out.vcf)
             NUMT_DETECTION_INSERTIONS_BLAST(NUMT_DETECTION_INSERTIONS_TO_FASTA.out.fasta, blast_db_ch)
@@ -131,7 +135,7 @@ workflow {
             //NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES(NUMT_DETECTION_SUPPLEMENTARY.out, params.reference)
             //NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES_FILTER(NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES.out.vcf)
             NUMT_DETECTION_PLOT(NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK.out, circos_bed_ch)
-        } 
+        }
     } else {
         if (params.input_type == 'bam') {
             fastq_out = UNALIGNED_BAM_TO_FASTQ(samples_ch)
@@ -161,28 +165,11 @@ workflow {
         .set { assembly_fasta }
 
     // Align reads to assembly and align assembly to ref
-    ALIGN_TO_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out.join(assembly_fasta), params.platform)
-    ALIGN_ASSEMBLY_TO_REF(assembly_fasta, minimap_index_ch, params.platform)
+    // ALIGN_TO_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out.join(assembly_fasta), params.platform)
+    // ALIGN_ASSEMBLY_TO_REF(assembly_fasta, minimap_index_ch, params.platform)
 
-    // Methylation
-    METH_FREQ(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
-    METH_PLOT(METH_FREQ.out.minimod_tsv)
 
-    // QC - coverage and read length
-    MT_COVERAGE(FILTER_NUMTS.out.filtered_bam)
-    COVERAGE_PLOT(MT_COVERAGE.out.per_base_bed)
-    MT_READ_LENGTH(FILTERED_BAM_TO_FASTQ.out)
-    READ_LENGTH_PLOT(MT_READ_LENGTH.out)
-
-    // Grab assembly info file to calculate # mtDNA copies
-    MT_ASSEMBLY.out.assembly_dir
-        .map { sample_id, dir -> tuple(sample_id, file("${dir}/assembly_info.txt"))}
-        .set { assembly_info}
-    
-    // QC summary 
-    QC_SUMMARY(MT_COVERAGE.out.mosdepth_summary.join(MT_READ_LENGTH.out).join(METH_FREQ.out.minimod_tsv).join(NUCLEAR_COVERAGE.out.mosdepth_summary).join(assembly_info))
-    COMBINE_QC_SUMMARY(QC_SUMMARY.out.collect())
-
+ 
     // SNV/indel/del variant calling (baldur) on reference
     VARIANT_CALLS_BALDUR(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
     NORMALIZE_BALDUR_VCF(VARIANT_CALLS_BALDUR.out.vcf)
@@ -203,10 +190,35 @@ workflow {
     FILTER_SNIFFLES_VCF(VARIANT_CALLS_SNIFFLES.out.vcf)
     
     // SV Calling of assembly to reference
-    VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(ALIGN_ASSEMBLY_TO_REF.out.bam)
+    // VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(ALIGN_ASSEMBLY_TO_REF.out.bam)
 
     // Generate multiple sniffles vcf across samples 
-    COMBINE_SV_CALLS(VARIANT_CALLS_SNIFFLES.out.snf.map { it[1]}.collect())
+    //COMBINE_SV_CALLS(VARIANT_CALLS_SNIFFLES.out.snf.map { it[1]}.collect())
+
+    // Methylation
+    METH_FREQ(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
+    METH_PLOT(METH_FREQ.out.minimod_tsv_mcg.join(METH_FREQ.out.minimod_tsv_hcg))
+
+
+    // QC 
+    MT_COVERAGE(FILTER_NUMTS.out.filtered_bam)
+    COVERAGE_PLOT(MT_COVERAGE.out.per_base_bed)
+    MT_READ_LENGTH(FILTERED_BAM_TO_FASTQ.out)
+    READ_LENGTH_PLOT(MT_READ_LENGTH.out)
+
+    // Grab assembly info file to calculate # mtDNA copies
+    MT_ASSEMBLY.out.assembly_dir
+        .map { sample_id, dir -> tuple(sample_id, file("${dir}/assembly_info.txt"))}
+        .set { assembly_info}
+
+    // QC summary 
+    if (args.is_aligned && args.check_nuclear_coverage) {
+        QC_SUMMARY(MT_COVERAGE.out.mosdepth_summary.join(MT_READ_LENGTH.out).join(NUCLEAR_COVERAGE.out.mosdepth_summary).join(assembly_info).join(HAPLOGREP.out.haplogrep_txt))
+        COMBINE_QC_SUMMARY(QC_SUMMARY.out.collect())
+    } else {
+        QC_SUMMARY_FOR_UNALIGNED_INPUT(MT_COVERAGE.out.mosdepth_summary.join(MT_READ_LENGTH.out).join(assembly_info).join(HAPLOGREP.out.haplogrep_txt))
+        COMBINE_QC_SUMMARY(QC_SUMMARY_FOR_UNALIGNED_INPUT.out.collect())
+    }
 
     // Rotate assembly to match reference coordinates and realign MT reads to it
     //ROTATE_ASSEMBLY(assembly_fasta, ALIGN_ASSEMBLY_TO_REF.out.bam, MT_ASSEMBLY.out) 

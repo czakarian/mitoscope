@@ -110,7 +110,7 @@ process QC_SUMMARY {
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(minimod_file), path(nuclear_coverage_file), path(assembly_info_file)
+    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(nuclear_coverage_file), path(assembly_info_file), path(haplogrep_file)
 
     output:
     path("${sample_id}.qc_summary.tsv")
@@ -119,14 +119,36 @@ process QC_SUMMARY {
     qc_summary.py \
     -c ${mosdepth_summary_file} \
     -r ${read_lengths_file} \
-    -m ${minimod_file} \
     -n ${nuclear_coverage_file} \
+    -g ${haplogrep_file} \
     -a ${assembly_info_file} \
     -d ${params.num_downsampled_reads} \
     -s ${sample_id}
     """
 }
 
+process QC_SUMMARY_FOR_UNALIGNED_INPUT {
+    
+    publishDir "${params.outdir}/${sample_id}/qc/", mode: 'copy'
+    container params.python
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(assembly_info_file), path(haplogrep_file)
+
+    output:
+    path("${sample_id}.qc_summary.tsv")
+
+    """
+    qc_summary.py \
+    -c ${mosdepth_summary_file} \
+    -r ${read_lengths_file} \
+    -g ${haplogrep_file} \
+    -a ${assembly_info_file} \
+    -d ${params.num_downsampled_reads} \
+    -s ${sample_id}
+    """
+}
 
 process COMBINE_QC_SUMMARY {
     publishDir "${params.outdir}/", mode: 'copy'

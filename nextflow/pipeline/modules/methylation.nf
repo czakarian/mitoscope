@@ -9,20 +9,27 @@ process METH_FREQ {
     tuple path(mt_ref), path(mt_ref_index)
 
     output:
-    tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.mCG.tsv"), emit: minimod_tsv_m
-    tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.hCG.tsv"), emit: minimod_tsv
-    tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.aA.tsv"), emit: minimod_tsv_aA
-    tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.aT.tsv"), emit: minimod_tsv_aT
-    // tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.bedGraph"), emit: minimod_bedgraph
-    path('minimod_summary.txt')
+    tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.mCG.tsv"), emit: minimod_tsv_mcg
+    tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.hCG.tsv"), emit: minimod_tsv_hcg
+    //tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.mCH.tsv"), emit: minimod_tsv_mch
+    //tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.hCH.tsv"), emit: minimod_tsv_hch
+    //tuple val(sample_id), path("${input_bam.getBaseName()}.minimod.aA.tsv"), emit: minimod_tsv_aA
+    //path('minimod_summary.txt')
 
     script:
     """
     set -euo pipefail
 
+    minimod summary ${input_bam} > minimod_summary.txt
+
     minimod freq -t ${task.cpus} -c "m[CG]" \
     -m ${params.meth_likelihood_threshold} \
     -o ${input_bam.getBaseName()}.minimod.mCG.tsv \
+    ${mt_ref} ${input_bam}
+
+    minimod freq -t ${task.cpus} -c "m[*]" \
+    -m ${params.meth_likelihood_threshold} \
+    -o ${input_bam.getBaseName()}.minimod.mCH.tsv \
     ${mt_ref} ${input_bam}
 
     minimod freq -t ${task.cpus} -c "h[CG]" \
@@ -30,47 +37,46 @@ process METH_FREQ {
     -o ${input_bam.getBaseName()}.minimod.hCG.tsv \
     ${mt_ref} ${input_bam}
 
+    minimod freq -t ${task.cpus} -c "h[*]" \
+    -m ${params.meth_likelihood_threshold} \
+    -o ${input_bam.getBaseName()}.minimod.hCH.tsv \
+    ${mt_ref} ${input_bam}
+
     minimod freq -t ${task.cpus} -c "a[A]" \
     -m ${params.meth_likelihood_threshold} \
     -o ${input_bam.getBaseName()}.minimod.aA.tsv \
     ${mt_ref} ${input_bam}
-
-    minimod freq -t ${task.cpus} -c "a[T]" \
-    -m ${params.meth_likelihood_threshold} \
-    -o ${input_bam.getBaseName()}.minimod.aT.tsv \
-    ${mt_ref} ${input_bam}
     
-    minimod summary ${input_bam} > minimod_summary.txt
-
     sort -k2 -n ${input_bam.getBaseName()}.minimod.mCG.tsv -o ${input_bam.getBaseName()}.minimod.mCG.tsv
+    sort -k2 -n ${input_bam.getBaseName()}.minimod.mCH.tsv -o ${input_bam.getBaseName()}.minimod.mCH.tsv
     sort -k2 -n ${input_bam.getBaseName()}.minimod.hCG.tsv -o ${input_bam.getBaseName()}.minimod.hCG.tsv
+    sort -k2 -n ${input_bam.getBaseName()}.minimod.hCH.tsv -o ${input_bam.getBaseName()}.minimod.hCH.tsv
     sort -k2 -n ${input_bam.getBaseName()}.minimod.aA.tsv -o ${input_bam.getBaseName()}.minimod.aA.tsv
-    sort -k2 -n ${input_bam.getBaseName()}.minimod.aT.tsv -o ${input_bam.getBaseName()}.minimod.aT.tsv
-
-    #tail +2 ${input_bam.getBaseName()}.minimod.tsv | cut -f 1-3,7  > "${input_bam.getBaseName()}.minimod.bedGraph"
 
     """
 }
 
 process METH_PLOT {
 
-    publishDir "${params.outdir}/${sample_id}/methylation", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/methylation/plots", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(meth_freq_tsv)
+    tuple val(sample_id), path(minimod_tsv_mcg),  path(minimod_tsv_hcg)
 
     output:
-    path("${meth_freq_tsv.getBaseName()}.meth_by_site.png")
-    path("${meth_freq_tsv.getBaseName()}.meth_freq_histogram.png")
-    path("meth.csv")
+    path("${minimod_tsv_mcg.getBaseName(2)}.meth_by_site.png")
+    path("${minimod_tsv_mcg.getBaseName(2)}.meth_freq_histogram.png")
 
     script:
     """
     set -euo pipefail
 
-    qc_plots.py --plot methylation --input ${meth_freq_tsv} --outprefix ${meth_freq_tsv.getBaseName()}
+    cat ${minimod_tsv_mcg} > combined_minimod_output.tsv
+    tail +2 ${minimod_tsv_hcg} >> combined_minimod_output.tsv
+
+    qc_plots.py --plot methylation --input combined_minimod_output.tsv --outprefix ${minimod_tsv_mcg.getBaseName(2)}
     """
 
 }

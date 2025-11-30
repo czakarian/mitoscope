@@ -1,6 +1,6 @@
 process MT_ASSEMBLY {
 
-    publishDir path: "${params.outdir}/${sample_id}/", pattern:"MT_assembly",  mode: 'copy'
+    publishDir path: "${params.outdir}/${sample_id}/", pattern:"assembly",  mode: 'copy'
     publishDir path: "${params.outdir}/${sample_id}/logs", pattern:"*.log",  mode: 'copy'
     container params.flye
     tag "${sample_id}"
@@ -10,7 +10,7 @@ process MT_ASSEMBLY {
     val platform
 
     output:
-    tuple val(sample_id), path("MT_assembly"), emit: assembly_dir
+    tuple val(sample_id), path("assembly"), emit: assembly_dir
     path("assembly_iterations.log"), emit: log
 
     script:
@@ -36,7 +36,7 @@ process MT_ASSEMBLY {
         iter_count=\$((\${iter_count} + 1))
         echo "[\$(date)] Iteration \${iter_count} for ${sample_id}"
 
-        iter_dir="MT_assembly_iter\${iter_count}"
+        iter_dir="assembly_iter\${iter_count}"
 
         # Downsample reads
         seqtk sample -s \${iter_count} ${filtered_fastq} ${params.num_downsampled_reads} | gzip > downsampled.iter\${iter_count}.fastq.gz
@@ -69,8 +69,8 @@ process MT_ASSEMBLY {
         # If mitochondrial-length circular contig found, stop iterating
         if [[ \${mito_length_found} == "true" ]]; then
             echo "[\$(date)] Circular ~16.6 kb contig found in iteration \${iter_count}."
-            cp -r "\${iter_dir}" MT_assembly
-            cp downsampled.iter\${iter_count}.fastq.gz MT_assembly/downsampled.fastq.gz
+            cp -r "\${iter_dir}" assembly
+            cp downsampled.iter\${iter_count}.fastq.gz assembly/downsampled.fastq.gz
             iterate="false"
         else
             echo "[\$(date)] No circular mito contig found — continuing."
@@ -80,7 +80,7 @@ process MT_ASSEMBLY {
     if [[ \${mito_length_found} != "true" ]]; then
         echo "[\$(date)] WARNING: Reached max iterations (\${max_iter}) without finding a circular mitochondrial contig." >&2
         # Copy the last attempt anyway for inspection
-        cp -r "MT_assembly_iter\${iter_count}" MT_assembly
+        cp -r "assembly_iter\${iter_count}" assembly
     fi
 
     """
@@ -88,7 +88,7 @@ process MT_ASSEMBLY {
 
 process INDEX_ASSEMBLY {
 
-    publishDir "${params.outdir}/${sample_id}/MT_assembly", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/assembly", mode: 'copy'
     container params.samtools
     tag "${sample_id}"
 
@@ -107,7 +107,7 @@ process INDEX_ASSEMBLY {
 
 process ROTATE_ASSEMBLY {
 
-    publishDir "${params.outdir}/${sample_id}/MT_assembly", pattern: "*.fasta", mode: 'symlink'
+    publishDir "${params.outdir}/${sample_id}/assembly", pattern: "*.fasta", mode: 'symlink'
     publishDir path: "${params.outdir}/logs", pattern: "*.log", mode: 'symlink'
     container params.python
     tag "${sample_id}"

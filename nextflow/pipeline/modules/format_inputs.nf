@@ -22,7 +22,7 @@ process UNALIGNED_BAM_TO_FASTQ {
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(bam_file), null
+    tuple val(sample_id), path(bam_file), val(empty_string)
 
     output:
     tuple val(sample_id), path("${sample_id}.fastq")
@@ -59,7 +59,7 @@ process UNALIGNED_CRAM_TO_FASTQ {
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(cram_file), null
+    tuple val(sample_id), path(cram_file), val(empty_string)
     path ref
 
     output:
