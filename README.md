@@ -1,8 +1,8 @@
-# mitoScope
+# Mitoscope
 
-mitoScope is long-read specific mitochondrial analysis tool that performs NUMT filtration, de novo assembly, variant calling (SNV, indel, SV), and methylation calling. It is built as a fully containerized Nextflow workflow using Singularity images and can be run on either ONT or PacBio data. Raw sequencing data or aligned reads are both accepted as input.
+Mitoscope is long-read specific mitochondrial analysis tool that performs NUMT filtration, de novo assembly, variant calling (SNV, indel, SV), and methylation calling. It is built as a fully containerized Nextflow workflow using Singularity images and can be run on either ONT or PacBio data. Raw sequencing data or aligned reads are both accepted as input.
 
-**mitoScope is currently in active development. Open an [issue](https://github.com/czakarian/mitoscope) if you find a problem or have a suggestion.**
+**mitoScope is currently in active development. Open an [issue](https://github.com/czakarian/mitoscope/issues/new) if you find a problem or have a suggestion.**
 
 
 # Table of Contents
@@ -24,23 +24,36 @@ cd mitoscope-${VERSION}/
 
 # Usage
 ```bash
-# basic usage
-nextflow run main.nf -params-file example_params.yaml
-
+nextflow run /path/to/mitoscope-${VERSION}/main.nf -params-file example_params.yaml
 ```
 
-*example_params.yaml*
-```
-samplesheet: "samples.csv" # path to 2-column headerless csv file with: sample_id,sample_file
-input_type: 'cram' # set to either 'bam', 'cram', 'fastq', or 'fastq.gz'
-is_aligned: true # set to true if aligned bam or cram, otherwise false for raw input
-platform: "pb" # pb or ont
-outdir: "/path/to/output/dir/result" # path to an existing output directory 
-reference: "/path/to/ref/for/cram/GRCH38.fa" # path to reference genome (only required for bam/cram inputs, otherwise set to null)
+### Parameters Specifications 
+The required `-params-file` argument accepts a yaml file with the following parameter specifications. See below or `example_params.yaml` for example.
 
+| name                  | description                                                                    |
+|-----------------------|------------------------------------------------------------------------------- |
+| samplesheet           | Path to a headerless csv file with 1) sample ids & 2) input file paths  |
+| input_type            | Input type (options are: 'bam', 'cram', 'fastq', 'fastq.gz').                   |
+| is_aligned            | Set to true if input is aligned, otherwise set to false.                       |
+| platform              | Specify 'pb' for PacBio or 'ont' for ONT.                                       |
+| outdir                | Path to directory to output results.                                            |
+| reference             | Path to reference genome.                                                       |
+
+example_params.yaml
+```yaml
+samplesheet: "samples.csv" 
+input_type: "cram" 
+is_aligned: true 
+platform: "pb" 
+outdir: "/path/to/output/dir/result" 
+reference: "/path/to/ref/for/cram/GRCH38.fa" 
 ```
 
-*samples.csv*
+
+### Sample Manifest
+One of the required parameters in the yaml file is the path to a sample manifest (`samplesheet`). See below or `example_sample_manifest.csv` for example.
+
+samples.csv
 ```
 sample1,/path/to/sample1.bam
 sample2,/path/to/sample2.bam

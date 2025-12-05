@@ -55,7 +55,7 @@ workflow {
 
     // Check for required parameters
     if (!params.samplesheet || !params.input_type || !params.outdir || !params.platform || !params.reference) {
-        error "Missing one of required parameters: samplesheet, input_type, is_aligned, outdir, platform"
+        error "Missing one of required parameters: samplesheet, input_type, is_aligned, outdir, platform, reference"
     }
 
     // Set up channels for reusable parameters
