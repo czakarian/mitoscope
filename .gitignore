@@ -1,6 +1,2 @@
-data/
-singularity/
-tools/
-nextflow/
-debug_scripts/
-old_scripts/
+images/*.sif
+images/*.img
