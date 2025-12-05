@@ -18,9 +18,12 @@ process VARIANT_CALLS_BALDUR {
 
     baldur -l debug \
     --output-deletions \
-    --small-deletion-limit 20 \
-    --large-deletion-limit 20 \
-    -q 20 -Q 20 \
+    --small-deletion-limit ${params.deletion_size_limit} \
+    --large-deletion-limit ${params.deletion_size_limit} \
+    --indel-thresholds ${params.indel_threshold} ${params.indel_threshold} \
+    --snv-thresholds ${params.snv_hard_threshold} ${params.snv_soft_threshold}  \
+    --homopolymer-limit ${params.homopolymer_limit} \
+    -q${params.mapq_threshold} -Q${params.base_qual_threshold} -I${params.max_indel_base_qual} \
     -T ${mt_ref} \
     -n ${sample_id} \
     -o "${input_bam.getBaseName()}.baldur" \
@@ -30,7 +33,7 @@ process VARIANT_CALLS_BALDUR {
 
 process NORMALIZE_BALDUR_VCF {
 
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*filtered.baldur*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*filtered.baldur.norm.vcf.gz*", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -59,7 +62,8 @@ process NORMALIZE_BALDUR_VCF {
 
 process ANNOTATE_BALDUR_SNVS {
     
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*filtered.baldur*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.annotated.txt", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/plots", pattern: "*.heteroplasmy.png", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -88,7 +92,8 @@ process ANNOTATE_BALDUR_SNVS {
 
 process ANNOTATE_BALDUR_INDELS {
     
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*filtered.baldur*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.annotated.txt", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/plots", pattern: "*.heteroplasmy.png", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -113,6 +118,61 @@ process ANNOTATE_BALDUR_INDELS {
     --annotations ${mitomap_anno_file} \
     --caller baldur 
     """
+}
+
+process VEP_BALDUR_VCF {
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*filtered.baldur*", mode: 'copy'
+    container params.vep
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(baldur_norm_vcf), path(baldur_norm__vcf_index)
+    tuple path(mt_ref), path(mt_ref_index)
+    path vep_cache_dir
+
+    output:
+    path("${baldur_norm_vcf.getBaseName(2)}.vep.vcf.gz")
+    path("${baldur_norm_vcf.getBaseName(2)}.vep.tsv")
+
+    script:
+    """
+    set -euo pipefail
+
+    vep --input_file ${baldur_norm_vcf} \
+    --cache \
+    --dir_cache ${vep_cache_dir} \
+    --offline \
+    --fork ${task.cpus} \
+    --fasta ${mt_ref} \
+    --vcf \
+    --compress_output bgzip \
+    --output_file ${baldur_norm_vcf.getBaseName(2)}.vep.vcf.gz \
+    --hgvs \
+    --protein \
+    --symbol \
+    --biotype \
+    --no_stats \
+    --allow_non_variant \
+    --distance 0
+
+    vep --input_file ${baldur_norm_vcf} \
+    --cache \
+    --dir_cache ${vep_cache_dir} \
+    --offline \
+    --fork ${task.cpus} \
+    --fasta ${mt_ref} \
+    --tab \
+    --output_file ${baldur_norm_vcf.getBaseName(2)}.vep.tsv \
+    --hgvs \
+    --protein \
+    --symbol \
+    --biotype \
+    --no_stats \
+    --allow_non_variant \
+    --distance 0
+
+    """
+
 }
 
 process VARIANT_CALLS_MUTSERVE {
@@ -277,3 +337,4 @@ process COMBINE_SV_CALLS {
     """
 
 }
+

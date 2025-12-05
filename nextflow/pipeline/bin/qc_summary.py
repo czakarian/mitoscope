@@ -37,7 +37,7 @@ downsampled_cov = assembly_df.iloc[0,2]
 mtdna_cn = downsampled_cov * (read_count / int(args.assembly_num_downsample))
 
 # == Haplogroup ===
-haplogroup = pd.read_csv(args.haplogroup_file, sep ='\t').iloc[0,1][1:-1]
+haplogroup = pd.read_csv(args.haplogroup_file, sep ='\t').iloc[0,1]
 
 # === Methylation stats ===
 # meth_df = pd.read_csv(args.meth_file, sep="\t")

@@ -80,3 +80,52 @@ process METH_PLOT {
     """
 
 }
+
+process METH_FREQ_ONT {
+
+    publishDir "${params.outdir}/${sample_id}/methylation", mode: 'copy'
+    container params.modkit
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(input_bam), path(input_bam_index)
+    tuple path(mt_ref), path(mt_ref_index)
+
+    output:
+    tuple val(sample_id), path("${input_bam.getBaseName()}.modkit.bedmethyl"), emit: modkit
+    path("modkit.log")
+
+    script:
+    """
+    set -euo pipefail
+
+    modkit pileup ${input_bam} ${input_bam.getBaseName()}.modkit.bedmethyl --ref ${mt_ref} --threads ${task.cpus} \
+    --motif CG 0 --motif CH 0 --ignore a --log-filepath modkit.log --header --no-filtering
+    
+    """
+}
+
+process METH_FREQ_PB {
+
+    publishDir "${params.outdir}/${sample_id}/methylation", mode: 'copy'
+    container params.pbcpgtools
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(input_bam), path(input_bam_index)
+    tuple path(mt_ref), path(mt_ref_index)
+
+    output:
+    tuple val(sample_id), path("${input_bam.getBaseName()}.pbcpgtools.*"), emit: pbcpgtools
+
+    script:
+    """
+    set -euo pipefail
+
+    aligned_bam_to_cpg_scores --bam ${input_bam} \
+    --output-prefix ${input_bam.getBaseName()}.pbcpgtools \
+    --pileup-mode count \
+    --threads ${task.cpus}
+    
+    """
+}

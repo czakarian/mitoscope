@@ -22,7 +22,7 @@ include { FILTER_NUMTS; FILTERED_BAM_TO_FASTQ; } from './modules/filtration.nf'
 include { MT_ASSEMBLY; ROTATE_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ASSEMBLY;
           INDEX_ASSEMBLY as INDEX_ROTATED_ASSEMBLY} from './modules/assembly.nf'
-include { METH_FREQ; METH_PLOT} from './modules/methylation.nf'
+include { METH_FREQ; METH_PLOT; METH_FREQ_ONT; METH_FREQ_PB} from './modules/methylation.nf'
 include { MT_COVERAGE; NUCLEAR_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; 
           READ_LENGTH_PLOT; QC_SUMMARY; QC_SUMMARY_FOR_UNALIGNED_INPUT; COMBINE_QC_SUMMARY} from './modules/qc.nf'
 include { VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR;
@@ -32,7 +32,8 @@ include { VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR;
           ANNOTATE_BALDUR_INDELS as ANNOTATE_BALDUR_INDELS;
           ANNOTATE_BALDUR_INDELS as ANNOTATE_BALDUR_INDELS_ASSEMBLY;
           ANNOTATE_BALDUR_SNVS as ANNOTATE_BALDUR_SNVS;
-          ANNOTATE_BALDUR_SNVS as ANNOTATE_BALDUR_SNVS_ASSEMBLY} from './modules/variant_calling.nf'
+          ANNOTATE_BALDUR_SNVS as ANNOTATE_BALDUR_SNVS_ASSEMBLY;
+          VEP_BALDUR_VCF} from './modules/variant_calling.nf'
 include { VARIANT_CALLS_MUTSERVE as VARIANT_CALLS_MUTSERVE;
           VARIANT_CALLS_MUTSERVE as VARIANT_CALLS_MUTSERVE_ASSEMBLY;
           NORMALIZE_MUTSERVE_VCF as NORMALIZE_MUTSERVE_VCF;
@@ -78,6 +79,10 @@ workflow {
     Channel.fromPath(params.blast_db)
         .first()
         .set { blast_db_ch }
+
+    Channel.fromPath(params.vep_cache_dir)
+        .first()
+        .set { vep_cache_ch }
 
     Channel.fromPath(params.circos_bed)
         .first()
@@ -175,6 +180,7 @@ workflow {
     NORMALIZE_BALDUR_VCF(VARIANT_CALLS_BALDUR.out.vcf)
     ANNOTATE_BALDUR_INDELS(NORMALIZE_BALDUR_VCF.out.norm_indels_vcf, mitomap_anno_file_ch)
     ANNOTATE_BALDUR_SNVS(NORMALIZE_BALDUR_VCF.out.norm_snvs_vcf, mitomap_anno_file_ch)
+    VEP_BALDUR_VCF(NORMALIZE_BALDUR_VCF.out.norm_vcf, mt_ref_ch, vep_cache_ch)
 
     // SNV variant calling (mutserve) on reference
     VARIANT_CALLS_MUTSERVE(FILTER_NUMTS.out.filtered_bam, mt_ref_ch, Channel.value("MT"))
@@ -199,6 +205,12 @@ workflow {
     METH_FREQ(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
     METH_PLOT(METH_FREQ.out.minimod_tsv_mcg.join(METH_FREQ.out.minimod_tsv_hcg))
 
+    if (params.platform == "pb") {
+        METH_FREQ_PB(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
+    } else if (params.platform == "ont") {
+        METH_FREQ_ONT(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
+    }
+
 
     // QC 
     MT_COVERAGE(FILTER_NUMTS.out.filtered_bam)
@@ -212,7 +224,7 @@ workflow {
         .set { assembly_info}
 
     // QC summary 
-    if (args.is_aligned && args.check_nuclear_coverage) {
+    if (params.is_aligned && params.check_nuclear_coverage) {
         QC_SUMMARY(MT_COVERAGE.out.mosdepth_summary.join(MT_READ_LENGTH.out).join(NUCLEAR_COVERAGE.out.mosdepth_summary).join(assembly_info).join(HAPLOGREP.out.haplogrep_txt))
         COMBINE_QC_SUMMARY(QC_SUMMARY.out.collect())
     } else {

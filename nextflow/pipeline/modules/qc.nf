@@ -37,7 +37,7 @@ process NUCLEAR_COVERAGE {
     """
     set -euo pipefail
 
-    mosdepth ${sample_id} ${input_cram} --fasta ${ref} --no-per-base --fast-mode
+    mosdepth ${sample_id} ${input_cram} --fasta ${ref} --threads ${task.cpus} --no-per-base --fast-mode
     """
 }
 
