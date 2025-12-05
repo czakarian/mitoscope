@@ -1,0 +1,90 @@
+MT	57	372	MT-HV2	CR:HVS2	Hypervariable segment 2 [classic:73-340 ]
+MT	57	57	MT-OHR57	CR:OH57	H-strand origin
+MT	110	441	MT-OHR	CR:OH	H-strand origins
+MT	213	235	MT-CSB1	CR:CSB1	Conserved sequence block 1
+MT	233	260	MT-TFX	CR:TFX	mtTF1 binding site
+MT	276	303	MT-TFY	CR:TFY	mtTF1 binding site
+MT	299	315	MT-CSB2	CR:CSB2	Conserved sequence block 2
+MT	317	321	MT-HPR	CR:HPR	replication primer
+MT	346	363	MT-CSB3	CR:CSB3	Conserved sequence block 3
+MT	371	379	MT-4H	CR:mt4H	mt4 H-strand control element
+MT	384	391	MT-3H	CR:mt3H	mt3 H-strand control element
+MT	392	435	MT-LSP	CR:PL	L-strand promoter [on complement]
+MT	418	445	MT-TFL	CR:mtTF1	mtTF1 binding site
+MT	438	574	MT-HV3	CR:HVS3	Hypervariable segment 3
+MT	523	550	MT-TFH	CR:TFH	mtTF1 binding site
+MT	545	567	MT-HSP1	CR:PH1	Major H-strand promoter
+MT	577	647	MT-TF	F	tRNA phenylalanine
+MT	645	645	MT-HSP2	PH2	Minor H-strand promoter
+MT	648	1601	MT-RNR1	12S	12S ribosomal RNA
+MT	1343	1393	MT-MOTSc	MOTS-C	MOTS-C peptide (MRWQEMGYIFYPRKLR) [MDP]
+MT	1602	1670	MT-TV	V	tRNA valine
+MT	1671	3229	MT-RNR2	16S	16S ribosomal RNA
+MT	1703	1819	MT-SHLP3	SHLP3	Small HN-like peptide 3 (MLGYNFSSFPCGTISIAPGFNFYRLYFIWVNGLAKVVW)  [MDP on complement]
+MT	2088	2168	MT-SHLP2	SHLP2	Small HN-like peptide 2 (MGVKFFTLSTRFFPSVQRAVPLWTNS) [MDP on complement]
+MT	2442	2522	MT-SHLP4	SHLP4	Small HN-like peptide 4 (MLEVMFLVNRRGKICRVPFTFFNLSL) [MDP on complement]
+MT	2485	2559	MT-SHLP1	SHLP1	Small HN-like peptide 1 (MCHWAGGASNTGDARGDVFGKQAG) [MDP on complement]
+MT	2633	2707	MT-HN	Humanin	Humanin peptide (MAPRGFSCLLLLTSEIDLPVKRRA) [MDP]
+MT	2780	2854	MT-SHLP5	SHLP5	Small HN-like peptide 5 (MYCSEVGFCSEVAPTEIFNAGLVV) [MDP on complement]
+MT	2990	3052	MT-SHLP6	SHLP6	Small HN-like peptide 6 (MLDQDIPMVQPLLKVRLFND)  [MDP]
+MT	3206	3229	MT-RNR3	-	5S-like sequence
+MT	3229	3256	MT-TER	-	Transcription terminator
+MT	3230	3304	MT-TL1	L(UUA/G)	tRNA leucine 1
+MT	3305	3306	MT-NC1	NC1	non-coding nucleotides
+MT	3307	4262	MT-ND1	ND1	NADH Dehydrogenase subunit 1
+MT	4263	4331	MT-TI	I	tRNA isoleucine
+MT	4329	4400	MT-TQ	Q	tRNA glutamine [on complement]
+MT	4401	4401	MT-NC2	NC2	non-coding nucleotides
+MT	4402	4469	MT-TM	M	tRNA methionine
+MT	4470	5511	MT-ND2	ND2	NADH dehydrogenase subunit 2
+MT	5512	5579	MT-TW	W	tRNA tryptophan
+MT	5580	5586	MT-NC3	NC3	non-coding nucleotides
+MT	5587	5655	MT-TA	A	tRNA alanine [on complement]
+MT	5656	5656	MT-NC4	NC4	non-coding nucleotides
+MT	5657	5729	MT-TN	N	tRNA asparagine [on complement]
+MT	5721	5798	MT-OLR	OL	L-strand origin [on complement]
+MT	5761	5826	MT-TC	C	tRNA cysteine [on complement]
+MT	5826	5891	MT-TY	Y	tRNA tyrosine [on complement]
+MT	5892	5903	MT-NC5	NC5	non-coding nucleotides
+MT	5904	7445	MT-CO1	COI	Cytochrome c oxidase subunit I
+MT	6287	6589	MT-GAU	Gau	Microprotein (100AA) within MT-CO1 [MDP on complement]
+MT	7446	7514	MT-TS1	S(UCN)	tRNA serine 1 [on complement]
+MT	7515	7517	MT-NC6	NC6	non-coding nucleotides
+MT	7518	7585	MT-TD	D	tRNA aspartic acid
+MT	7586	8269	MT-CO2	COII	Cytochrome c oxidase subunit II
+MT	8270	8294	MT-NC7	NC7	non-coding nucleotides
+MT	8295	8364	MT-TK	K	tRNA lysine
+MT	8365	8365	MT-NC8	NC8	non-coding nucleotide
+MT	8366	8572	MT-ATP8	ATPase8	ATP synthase F0 subunit 8
+MT	8527	9207	MT-ATP6	ATPase6	ATP synthase F0 subunit 6
+MT	9207	9990	MT-CO3	COIII	Cytochrome c oxidase subunit III
+MT	9991	10058	MT-TG	G	tRNA glycine
+MT	10059	10404	MT-ND3	ND3	NADH dehydrogenase subunit 3
+MT	10405	10469	MT-TR	R	tRNA arginine
+MT	10470	10766	MT-ND4L	ND4L	NADH dehydrogenase subunit 4L
+MT	10760	12137	MT-ND4	ND4	NADH dehydrogenase subunit 4
+MT	11557	11856	MT-ALTND4	ALTND4	Microprotein (99AA) within MT-ND4 [MDP]
+MT	12138	12206	MT-TH	H	tRNA histidine
+MT	12207	12265	MT-TS2	S(AGY)	tRNA serine2
+MT	12234	12410	MT-SHMOOSE	SHMOOSE	"Microprotein (58AA) overlapping MT-TS1, MT-TL1, MT-ND5  [MDP]"
+MT	12266	12336	MT-TL2	L(CUN)	tRNA leucine2
+MT	12337	14148	MT-ND5	ND5	NADH dehydrogenase subunit 5
+MT	14149	14673	MT-ND6	ND6	NADH dehydrogenase subunit 6 [on complement]
+MT	14674	14742	MT-TE	E	tRNA glutamic acid [on complement]
+MT	14743	14746	MT-NC9	NC9	non-coding nucleotides
+MT	14747	15887	MT-CYB	Cytb	Cytochrome b
+MT	14747	15887	MT-CYTB-187AA	CYTB-187AA	Protein (187AA) in alternate reading frame of MT-CYB [MDP]
+MT	15888	15953	MT-TT	T	tRNA threonine
+MT	15925	16569	MT-ATT	ATT	membrane attachment site
+MT	0	499	MT-ATT	ATT	membrane attachment site
+MT	15954	15955	MT-NC10	NC10	non-coding nucleotides
+MT	15956	16023	MT-TP	P	tRNA proline [on complement]
+MT	16024	16569	MT-CR	CR:Control Region	entire Control Region (including displacement loop)
+MT	0	576	MT-CR	CR:Control Region	entire Control Region (including displacement loop)
+MT	16024	16383	MT-HV1	CR:HVS1/HV1	Hypervariable segment 1 [classic:16024-16365]
+MT	16081	16138	MT-TAS2	CR:TAS2	extended termination-associated sequence
+MT	16106	16569	MT-7SDNA	CR:7S-like	7S DNA
+MT	0	191	MT-7SDNA	CR:7S-like	7S DNA
+MT	16157	16172	MT-TAS	CR:TAS	termination-associated sequence
+MT	16194	16208	MT-5	CR:mt5	control element
+MT	16499	16506	MT-3L	CR:mt3L	L-strand control element [on complement]

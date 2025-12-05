@@ -1,6 +1,0 @@
-Edge	4	0	0	0	0	0	5	-1
-	Sequence	+edge_3_0_+disjointig_1_3162_19728 16566 1 36295 3162 19728
-	Sequence	+edge_3_1_+disjointig_1_19728_36289 16561 1 36295 19728 36289
-Edge	5	1	1	0	0	0	5	-1
-	Sequence	-edge_3_0_+disjointig_1_3162_19728 16566 -1 36295 16566 33132
-	Sequence	-edge_3_1_+disjointig_1_19728_36289 16561 -1 36295 5 16566

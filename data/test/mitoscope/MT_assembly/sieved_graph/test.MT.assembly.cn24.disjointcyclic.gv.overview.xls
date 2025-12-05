@@ -1,6 +1,0 @@
-// disjointcyclic subgraphs
-// file = test.MT.assembly.cn24.disjointcyclic.gv
-// |subgraphs| = 0
-// data = ../assembly_graph.gv
-// cn >= 24
-subgraphId	numLinearVertices	numLinearEdges	numVertices	numEdges	num_0_chrom	kbp_0_chrom	avecov_0_chrom	num_1_low_amp	kbp_1_low_amp	avecov_1_low_amp	num_2_med_amp	kbp_2_med_amp	avecov_2_med_amp	num_3_high_amp	kbp_3_high_amp	avecov_3_high_amp	vertices	edges	cov_0_chrom	len_0_chrom	cov_1_low_amp	len_1_low_amp	cov_2_med_amp	len_2_med_amp	cov_3_high_amp	len_3_high_amp	linearVertices	linearEdges
