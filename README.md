@@ -18,7 +18,7 @@ Mitoscope is long-read specific mitochondrial analysis tool that performs NUMT f
 ```bash
 VERSION=0.1.0
 wget https://github.com/czakarian/mitoscope/archive/refs/tags/v${VERSION}.tar.gz
-tar xvf mitoscope-${VERSION}.tar.gz
+tar xvf v${VERSION}.tar.gz
 cd mitoscope-${VERSION}/
 ```
 
