@@ -3,4 +3,4 @@ input_type: 'cram' # set to either 'bam', 'cram', 'fastq', or 'fastq.gz'
 is_aligned: true # set to true if aligned bam or cram, otherwise false
 platform: "pb" # pb or ont
 outdir: "/path/to/output/dir/result" # path to an existing output directory 
-reference: "/path/to/ref/for/cram/GRCH38.fa" # path to reference genome (only required for bam/cram inputs, otherwise set to null)
+reference: "/path/to/ref/GRCH38.fa" # path to reference genome
