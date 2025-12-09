@@ -11,7 +11,7 @@ process ALIGN_TO_REF {
     path minimap_index
 
     output:
-    tuple val(sample_id), path("${fastq_file.getBaseName(2)}.bam"), path("${fastq_file.getBaseName(2)}.bam.bai"), emit: bam
+    tuple val(sample_id), path("${sample_id}.bam"), path("${sample_id}.bam.bai"), emit: bam
     path("align_to_ref.log")
 
     script:
@@ -22,8 +22,8 @@ process ALIGN_TO_REF {
     """
     set -euo pipefail
 
-    minimap2 -ax ${preset} -Y -y -t ${task.cpus} ${minimap_index} ${fastq_file} 2> align_to_ref.log | samtools sort -@${task.cpus} -o "${fastq_file.getBaseName(2)}.bam"
-    samtools index -@${task.cpus} "${fastq_file.getBaseName(2)}.bam"
+    minimap2 -ax ${preset} -Y -y -t ${task.cpus} ${minimap_index} ${fastq_file} 2> align_to_ref.log | samtools sort -@${task.cpus} -o "${sample_id}.bam"
+    samtools index -@${task.cpus} "${sample_id}.bam"
     """
 }
 

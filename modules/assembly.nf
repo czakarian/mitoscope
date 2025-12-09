@@ -1,6 +1,6 @@
 process MT_ASSEMBLY {
 
-    publishDir path: "${params.outdir}/${sample_id}/", pattern:"assembly",  mode: 'copy'
+    publishDir path: "${params.outdir}/${sample_id}/", pattern:"assembly", mode: 'copy'
     publishDir path: "${params.outdir}/${sample_id}/logs", pattern:"*.log",  mode: 'copy'
     container params.flye
     tag "${sample_id}"
@@ -10,7 +10,7 @@ process MT_ASSEMBLY {
     val platform
 
     output:
-    tuple val(sample_id), path("assembly"), emit: assembly_dir
+    tuple val(sample_id), path("assembly/"), emit: assembly_dir
     path("assembly_iterations.log"), emit: log
 
     script:
@@ -88,7 +88,7 @@ process MT_ASSEMBLY {
 
 process INDEX_ASSEMBLY {
 
-    publishDir "${params.outdir}/${sample_id}/assembly", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/assembly", mode: 'copy'
     container params.samtools
     tag "${sample_id}"
 
@@ -107,8 +107,8 @@ process INDEX_ASSEMBLY {
 
 process ROTATE_ASSEMBLY {
 
-    publishDir "${params.outdir}/${sample_id}/assembly", pattern: "*.fasta", mode: 'symlink'
-    publishDir path: "${params.outdir}/logs", pattern: "*.log", mode: 'symlink'
+    //publishDir "${params.outdir}/${sample_id}/assembly", pattern: "*.fasta", mode: 'symlink'
+    //publishDir path: "${params.outdir}/logs", pattern: "*.log", mode: 'symlink'
     container params.python
     tag "${sample_id}"
 

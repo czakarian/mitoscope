@@ -1,6 +1,6 @@
 process VARIANT_CALLS_BALDUR {
 
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*filtered.baldur*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.baldur_del.txt", mode: 'copy'
     container params.baldur
     tag "${sample_id}"
 
@@ -28,12 +28,13 @@ process VARIANT_CALLS_BALDUR {
     -n ${sample_id} \
     -o "${input_bam.getBaseName()}.baldur" \
     ${input_bam} 
+
     """
 }
 
 process NORMALIZE_BALDUR_VCF {
 
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*filtered.baldur.norm.vcf.gz*", mode: 'copy'
+    // publishDir "${params.outdir}/${sample_id}/variants/baldur/", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -42,8 +43,6 @@ process NORMALIZE_BALDUR_VCF {
 
     output:
     tuple val(sample_id), path("${baldur_vcf.getBaseName(2)}.norm.vcf.gz"),path("${baldur_vcf.getBaseName(2)}.norm.vcf.gz.tbi"), emit: norm_vcf
-    tuple val(sample_id), path("${baldur_vcf.getBaseName(2)}.norm.indels.vcf.gz"),path("${baldur_vcf.getBaseName(2)}.norm.indels.vcf.gz.tbi"), emit: norm_indels_vcf
-    tuple val(sample_id), path("${baldur_vcf.getBaseName(2)}.norm.snvs.vcf.gz"),path("${baldur_vcf.getBaseName(2)}.norm.snvs.vcf.gz.tbi"), emit: norm_snvs_vcf
 
     script:
     """
@@ -52,28 +51,24 @@ process NORMALIZE_BALDUR_VCF {
     bcftools norm --multiallelics -both ${baldur_vcf} | bcftools norm --atomize --atom-overlaps . | bcftools view -f PASS -Oz -o ${baldur_vcf.getBaseName(2)}.norm.vcf.gz 
     bcftools index --tbi ${baldur_vcf.getBaseName(2)}.norm.vcf.gz  
 
-    bcftools view --types indels ${baldur_vcf.getBaseName(2)}.norm.vcf.gz -Oz -o ${baldur_vcf.getBaseName(2)}.norm.indels.vcf.gz 
-    bcftools view --exclude-types indels ${baldur_vcf.getBaseName(2)}.norm.vcf.gz -Oz -o ${baldur_vcf.getBaseName(2)}.norm.snvs.vcf.gz 
-    bcftools index --tbi ${baldur_vcf.getBaseName(2)}.norm.indels.vcf.gz 
-    bcftools index --tbi ${baldur_vcf.getBaseName(2)}.norm.snvs.vcf.gz 
-
     """
 }
 
-process ANNOTATE_BALDUR_SNVS {
+
+process ANNOTATE_BALDUR {
     
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.annotated.txt", mode: 'copy'
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/plots", pattern: "*.heteroplasmy.png", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.mitomap.txt", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.heteroplasmy.png", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(baldur_norm_snvs_vcf), path(baldur_norm_snvs_vcf_index)
+    tuple val(sample_id), path(baldur_norm_vcf), path(baldur_norm_vcf_index)
     path mitomap_anno_file
 
     output:
-    path("${baldur_norm_snvs_vcf.getBaseName(2)}.annotated.txt")
-    path("${baldur_norm_snvs_vcf.getBaseName(2)}.heteroplasmy.png") 
+    tuple val(sample_id), path("${baldur_norm_vcf.getBaseName(2)}.mitomap.txt"), emit: mitomap_txt
+    path("${baldur_norm_vcf.getBaseName(2)}.heteroplasmy.png") 
 
     script:
     """
@@ -84,55 +79,25 @@ process ANNOTATE_BALDUR_SNVS {
     mkdir -p \$MPLCONFIGDIR
 
     annotate.py \
-    --input ${baldur_norm_snvs_vcf} \
-    --annotations ${mitomap_anno_file} \
-    --caller baldur 
-    """
-}
-
-process ANNOTATE_BALDUR_INDELS {
-    
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.annotated.txt", mode: 'copy'
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/plots", pattern: "*.heteroplasmy.png", mode: 'copy'
-    container params.python
-    tag "${sample_id}"
-
-    input:
-    tuple val(sample_id), path(baldur_norm_indels_vcf), path(baldur_norm_indels_vcf_index)
-    path mitomap_anno_file
-
-    output:
-    path("${baldur_norm_indels_vcf.getBaseName(2)}.annotated.txt")
-    path("${baldur_norm_indels_vcf.getBaseName(2)}.heteroplasmy.png") 
-
-    script:
-    """
-    set -euo pipefail
-    
-    # set up temp cache directory for matplotlib
-    export MPLCONFIGDIR=${params.mplconfigdir}
-    mkdir -p \$MPLCONFIGDIR
-
-    annotate.py \
-    --input ${baldur_norm_indels_vcf} \
+    --input ${baldur_norm_vcf} \
     --annotations ${mitomap_anno_file} \
     --caller baldur 
     """
 }
 
 process VEP_BALDUR_VCF {
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*filtered.baldur*", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/variants/baldur/", mode: 'copy'
     container params.vep
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(baldur_norm_vcf), path(baldur_norm__vcf_index)
+    tuple val(sample_id), path(baldur_norm_vcf), path(baldur_norm_vcf_index)
     tuple path(mt_ref), path(mt_ref_index)
     path vep_cache_dir
 
     output:
-    path("${baldur_norm_vcf.getBaseName(2)}.vep.vcf.gz")
-    path("${baldur_norm_vcf.getBaseName(2)}.vep.tsv")
+    tuple val(sample_id), path("${baldur_norm_vcf.getBaseName(2)}.vep.vcf.gz"), path("${baldur_norm_vcf.getBaseName(2)}.vep.vcf.gz.tbi"), emit: vep_vcf
+    // path("${baldur_norm_vcf.getBaseName(2)}.vep.tsv")
 
     script:
     """
@@ -155,6 +120,8 @@ process VEP_BALDUR_VCF {
     --allow_non_variant \
     --distance 0
 
+    tabix -p vcf ${baldur_norm_vcf.getBaseName(2)}.vep.vcf.gz
+
     vep --input_file ${baldur_norm_vcf} \
     --cache \
     --dir_cache ${vep_cache_dir} \
@@ -175,16 +142,48 @@ process VEP_BALDUR_VCF {
 
 }
 
+process ADD_MITOMAP_TO_BALDUR_VCF {
+    publishDir "${params.outdir}/${sample_id}/variants/baldur/", mode: 'copy'
+    container params.bcftools
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(input_vcf), path(input_vcf_index), path(mitomap_tsv)
+
+    output:
+    tuple val(sample_id), path("${sample_id}.mt.baldur.annotated.vcf.gz"), path("${sample_id}.mt.baldur.annotated.vcf.gz.tbi"), emit: anno_vcf
+
+    script:
+    """
+    
+    cut -f 1-5,35 ${mitomap_tsv} | tail +2 > subset_mitomap.tab
+    bgzip subset_mitomap.tab
+    tabix -s1 -b2 -e2 subset_mitomap.tab.gz
+
+    echo '##INFO=<ID=MITOMAP,Number=1,Type=String,Description="Annotations from MITOMAP. Format: Gene.Name|Gene.Type|Amino.Acid.Change|GB.Freq.FL|GB.Freq.CR|GB.Seqs.FL|GB.Seqs.CR|Homoplasmy|Heteroplasmy|Disease.Status|References|Additional.Annotations|MitoTIP">' > header.txt
+
+    bcftools annotate ${input_vcf} \
+        -c CHROM,POS,-,REF,ALT,INFO/MITOMAP \
+        --annotations subset_mitomap.tab.gz \
+        --header-lines header.txt \
+        --threads ${task.cpus} \
+        --output-type z \
+        --write-index=tbi \
+        --output ${sample_id}.mt.baldur.annotated.vcf.gz 
+
+    """
+
+}
+
 process VARIANT_CALLS_MUTSERVE {
 
-    publishDir "${params.outdir}/${sample_id}/variants/mutserve/", pattern: "*filtered.mutserve*", mode: 'copy'
+    // publishDir "${params.outdir}/${sample_id}/variants/mutserve/", mode: 'copy'
     container params.mutserve
     tag "${sample_id}"
 
     input:
     tuple val(sample_id), path(input_bam), path(input_bam_index)
     tuple path(mt_ref), path(mt_ref_index)
-    val contig_name
 
     output:
     tuple val(sample_id), path("${input_bam.getBaseName()}.mutserve.vcf.gz"), emit: vcf
@@ -196,7 +195,7 @@ process VARIANT_CALLS_MUTSERVE {
     mutserve call ${input_bam} \
     --output ${input_bam.getBaseName()}.mutserve.vcf.gz \
     --reference ${mt_ref} \
-    --contig-name ${contig_name} \
+    --contig-name MT \
     --threads ${task.cpus} --no-ansi \
     --alignQ 0 --mapQ 20 --baseQ 20 --level 0.005
 
@@ -205,7 +204,7 @@ process VARIANT_CALLS_MUTSERVE {
 
 process NORMALIZE_MUTSERVE_VCF {
     
-    publishDir "${params.outdir}/${sample_id}/variants/mutserve/", pattern: "*filtered.mutserve*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -229,7 +228,7 @@ process NORMALIZE_MUTSERVE_VCF {
 
 process ANNOTATE_MUTSERVE_VCF {
     
-    publishDir "${params.outdir}/${sample_id}/variants/mutserve/", pattern: "*filtered.mutserve*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/mutserve/", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -260,13 +259,14 @@ process ANNOTATE_MUTSERVE_VCF {
 
 process VARIANT_CALLS_SNIFFLES {
 
-    publishDir "${params.outdir}/${sample_id}/variants/sniffles/", pattern: "*filtered.sniffles*", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/variants/sniffles/", mode: 'copy'
     //publishDir "${params.outdir}/${sample_id}/variants/sniffles/assembly_to_ref", pattern: "*assembly.ref.sniffles*", mode: 'copy'
     container params.sniffles
     tag "${sample_id}"
 
     input:
     tuple val(sample_id), path(input_bam), path(input_bam_index)
+    tuple path(mt_ref), path(mt_ref_index)
 
     output:
     tuple val(sample_id), path("${input_bam.getBaseName()}.sniffles.vcf"), emit: vcf
@@ -280,6 +280,7 @@ process VARIANT_CALLS_SNIFFLES {
     --minsvlen 5 \
     --minsupport ${params.min_sv_support} \
     --threads ${task.cpus} \
+    --ref ${mt_ref} \
     --input ${input_bam} \
     --snf ${input_bam.getBaseName()}.sniffles.snf \
     --vcf ${input_bam.getBaseName()}.sniffles.vcf
@@ -290,7 +291,7 @@ process VARIANT_CALLS_SNIFFLES {
 
 process FILTER_SNIFFLES_VCF {
     
-    publishDir "${params.outdir}/${sample_id}/variants/sniffles/", pattern: "*filtered.sniffles*", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/sniffles/", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -326,6 +327,7 @@ process COMBINE_SV_CALLS {
     script:
     """
     sniffles \
+    --qc-output-all \
     --minsvlen 5 \
     --combine-low-confidence 0 \
     --combine-low-confidence-abs 0 \

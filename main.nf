@@ -25,21 +25,8 @@ include { MT_ASSEMBLY; ROTATE_ASSEMBLY;
 include { METH_FREQ; METH_PLOT; METH_FREQ_ONT; METH_FREQ_PB} from './modules/methylation.nf'
 include { MT_COVERAGE; NUCLEAR_COVERAGE; MT_READ_LENGTH; COVERAGE_PLOT; 
           READ_LENGTH_PLOT; QC_SUMMARY; QC_SUMMARY_FOR_UNALIGNED_INPUT; COMBINE_QC_SUMMARY} from './modules/qc.nf'
-include { VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR;
-          VARIANT_CALLS_BALDUR as VARIANT_CALLS_BALDUR_ASSEMBLY; 
-          NORMALIZE_BALDUR_VCF as NORMALIZE_BALDUR_VCF;
-          NORMALIZE_BALDUR_VCF as NORMALIZE_BALDUR_VCF_ASSEMBLY;
-          ANNOTATE_BALDUR_INDELS as ANNOTATE_BALDUR_INDELS;
-          ANNOTATE_BALDUR_INDELS as ANNOTATE_BALDUR_INDELS_ASSEMBLY;
-          ANNOTATE_BALDUR_SNVS as ANNOTATE_BALDUR_SNVS;
-          ANNOTATE_BALDUR_SNVS as ANNOTATE_BALDUR_SNVS_ASSEMBLY;
-          VEP_BALDUR_VCF} from './modules/variant_calling.nf'
-include { VARIANT_CALLS_MUTSERVE as VARIANT_CALLS_MUTSERVE;
-          VARIANT_CALLS_MUTSERVE as VARIANT_CALLS_MUTSERVE_ASSEMBLY;
-          NORMALIZE_MUTSERVE_VCF as NORMALIZE_MUTSERVE_VCF;
-          NORMALIZE_MUTSERVE_VCF as NORMALIZE_MUTSERVE_VCF_ASSEMBLY;
-          ANNOTATE_MUTSERVE_VCF as ANNOTATE_MUTSERVE_VCF; 
-          ANNOTATE_MUTSERVE_VCF as ANNOTATE_MUTSERVE_VCF_ASSEMBLY} from './modules/variant_calling.nf'
+include { VARIANT_CALLS_BALDUR; NORMALIZE_BALDUR_VCF; ANNOTATE_BALDUR; VEP_BALDUR_VCF; ADD_MITOMAP_TO_BALDUR_VCF} from './modules/variant_calling.nf'
+include { VARIANT_CALLS_MUTSERVE; NORMALIZE_MUTSERVE_VCF; ANNOTATE_MUTSERVE_VCF} from './modules/variant_calling.nf'
 include { VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES; 
           VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY;
           VARIANT_CALLS_SNIFFLES as VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF;
@@ -165,52 +152,50 @@ workflow {
 
     // // Assemble mito
     MT_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out, params.platform)
-    INDEX_ASSEMBLY(MT_ASSEMBLY.out.assembly_dir
-        .map { sample_id, dir -> tuple(sample_id, file("${dir}/assembly.fasta"))})
-        .set { assembly_fasta }
+
+    // if need to index assembly, do within MT_assembly process (add tabix)
+    // INDEX_ASSEMBLY(MT_ASSEMBLY.out.assembly_dir
+    //     .map { sample_id, dir -> tuple(sample_id, file("${dir}/assembly.fasta"))})
+    //     .set { assembly_fasta }
 
     // Align reads to assembly and align assembly to ref
     // ALIGN_TO_ASSEMBLY(FILTERED_BAM_TO_FASTQ.out.join(assembly_fasta), params.platform)
     // ALIGN_ASSEMBLY_TO_REF(assembly_fasta, minimap_index_ch, params.platform)
-
-
  
     // SNV/indel/del variant calling (baldur) on reference
     VARIANT_CALLS_BALDUR(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
     NORMALIZE_BALDUR_VCF(VARIANT_CALLS_BALDUR.out.vcf)
-    ANNOTATE_BALDUR_INDELS(NORMALIZE_BALDUR_VCF.out.norm_indels_vcf, mitomap_anno_file_ch)
-    ANNOTATE_BALDUR_SNVS(NORMALIZE_BALDUR_VCF.out.norm_snvs_vcf, mitomap_anno_file_ch)
+    ANNOTATE_BALDUR(NORMALIZE_BALDUR_VCF.out.norm_vcf, mitomap_anno_file_ch)
     VEP_BALDUR_VCF(NORMALIZE_BALDUR_VCF.out.norm_vcf, mt_ref_ch, vep_cache_ch)
+    ADD_MITOMAP_TO_BALDUR_VCF(VEP_BALDUR_VCF.out.vep_vcf.join(ANNOTATE_BALDUR.out.mitomap_txt))
 
     // SNV variant calling (mutserve) on reference
-    VARIANT_CALLS_MUTSERVE(FILTER_NUMTS.out.filtered_bam, mt_ref_ch, Channel.value("MT"))
-    NORMALIZE_MUTSERVE_VCF(VARIANT_CALLS_MUTSERVE.out.vcf)
-    ANNOTATE_MUTSERVE_VCF(NORMALIZE_MUTSERVE_VCF.out.norm_vcf, mitomap_anno_file_ch)
+    VARIANT_CALLS_MUTSERVE(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
+    // NORMALIZE_MUTSERVE_VCF(VARIANT_CALLS_MUTSERVE.out.vcf)
+    // ANNOTATE_MUTSERVE_VCF(NORMALIZE_MUTSERVE_VCF.out.norm_vcf, mitomap_anno_file_ch)
 
     // Haplogrep/haplocheck
     HAPLOGREP(VARIANT_CALLS_MUTSERVE.out.vcf)
     HAPLOCHECK(VARIANT_CALLS_MUTSERVE.out.vcf)
 
     // SV Calling on reference
-    VARIANT_CALLS_SNIFFLES(FILTER_NUMTS.out.filtered_bam)
+    VARIANT_CALLS_SNIFFLES(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
     FILTER_SNIFFLES_VCF(VARIANT_CALLS_SNIFFLES.out.vcf)
     
     // SV Calling of assembly to reference
     // VARIANT_CALLS_SNIFFLES_ASSEMBLY_TO_REF(ALIGN_ASSEMBLY_TO_REF.out.bam)
 
-    // Generate multiple sniffles vcf across samples 
-    //COMBINE_SV_CALLS(VARIANT_CALLS_SNIFFLES.out.snf.map { it[1]}.collect())
+    // //Generate multiple sniffles vcf across samples 
+    // COMBINE_SV_CALLS(VARIANT_CALLS_SNIFFLES.out.snf.map { it[1]}.collect())
 
     // Methylation
-    METH_FREQ(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
-    METH_PLOT(METH_FREQ.out.minimod_tsv_mcg.join(METH_FREQ.out.minimod_tsv_hcg))
-
     if (params.platform == "pb") {
         METH_FREQ_PB(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
     } else if (params.platform == "ont") {
         METH_FREQ_ONT(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
     }
-
+    // METH_FREQ(FILTER_NUMTS.out.filtered_bam, mt_ref_ch)
+    // METH_PLOT(METH_FREQ.out.minimod_tsv_mcg.join(METH_FREQ.out.minimod_tsv_hcg))
 
     // QC 
     MT_COVERAGE(FILTER_NUMTS.out.filtered_bam)
@@ -243,7 +228,6 @@ workflow {
     // // SV Calling on rotated assembly
     // VARIANT_CALLS_SNIFFLES_ASSEMBLY(mt_align_rotated_assembly_bam)
     // FILTER_SNIFFLES_VCF_ASSEMBLY(VARIANT_CALLS_SNIFFLES_ASSEMBLY.out.sniffles_vcf)
-
 
 }
 

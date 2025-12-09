@@ -9,6 +9,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 
 def get_args():
     parser = argparse.ArgumentParser(description="Appends annotations from MITOMAP to a VCF file based on position, REF, ALT fields.")
@@ -117,7 +118,7 @@ input_df = read_vcf(input_file)
 
 # in case vcf is empty output empty placeholders
 if (len(input_df) == 0):
-    input_df.to_csv(f"{input_prefix}.annotated.txt", sep='\t', index=False)
+    input_df.to_csv(f"{input_prefix}.mitomap.txt", sep='\t', index=False)
 
     fig = plt.figure()
     fig.savefig(f"{input_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
@@ -155,9 +156,13 @@ else:
     merged_df = pd.merge(input_df, anno_df, how="left", on=["POS", "REF", "ALT"])
     merged_df['DiseaseVariantStatus'] = merged_df['Source'].apply(get_variant_status)
 
-    ## output annotated file and heteroplasmy plot
-    merged_df.to_csv(f"{input_prefix}.annotated.txt", sep='\t', index=False)
-
     if not args.multisample:
         fig = create_heteroplasmy_plot(merged_df)
         fig.savefig(f"{input_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
+
+    merged_df = merged_df.fillna('').astype(str)
+    columns_to_join = merged_df.columns.tolist()[18:32] 
+    merged_df['new_joined_column'] = merged_df[columns_to_join].agg("|".join, axis=1)
+
+    ## output annotated file and heteroplasmy plot
+    merged_df.to_csv(f"{input_prefix}.mitomap.txt", sep='\t', index=False)

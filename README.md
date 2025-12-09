@@ -8,7 +8,7 @@ Mitoscope is long-read specific mitochondrial analysis tool that performs NUMT f
 # Table of Contents
 - [Installation](#installation)
 - [Usage](#usage)
-- [Examples](#examples)
+- [Outputs](#outputs)
 
 # Installation
 ## Pre-requisites
@@ -60,3 +60,16 @@ sample2,/path/to/sample2.bam
 sample3,/path/to/sample3.bam
 sample4,/path/to/sample4.bam
 ```
+
+# Outputs
+
+Mitoscope outputs a sample directory with the following subdirectories to the `--outdir` directory.
+
+| name                | description                                                      |
+|---------------------|----------------------------------------------------------------- |
+| alignments/          | Bam files for retained mtDNA reads and discarded reads.         |
+| assembly/            | Assembly output from meta-flye.                                 |
+| methylation/         | Methylation calls from modkit/pb-CpG-tools.                     |
+| qc/                  | QC metrics.                                                     |
+| variants/            | Variant calls (snv/indel, SV)                                   |
+| logs/                | Log files.                                                      |

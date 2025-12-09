@@ -10,7 +10,7 @@ process KMER_SELECTION {
     path kmc_suf
 
     output:
-    tuple val(sample_id), path("${fastq_file.getBaseName(2)}.MT.fastq.gz")
+    tuple val(sample_id), path("${sample_id}.kmer_selection.fastq.gz")
 
     script:
     """
@@ -20,6 +20,6 @@ process KMER_SELECTION {
     cp ${kmc_pre} MT.k29.kmc_pre
     cp ${kmc_suf} MT.k29.kmc_suf
 
-    kmc_tools -t${task.cpus} filter MT.k29 -ci1 ${fastq_file} -fq -ci2500 /dev/stdout | tr ' ' '\t' | gzip > ${fastq_file.getBaseName(2)}.MT.fastq.gz
+    kmc_tools -t${task.cpus} filter MT.k29 -ci1 ${fastq_file} -fq -ci2500 /dev/stdout | tr ' ' '\t' | gzip > ${sample_id}.kmer_selection.fastq.gz
     """
 }

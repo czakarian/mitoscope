@@ -83,7 +83,8 @@ process METH_PLOT {
 
 process METH_FREQ_ONT {
 
-    publishDir "${params.outdir}/${sample_id}/methylation", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/methylation", pattern: "*.bedmethyl", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'copy'
     container params.modkit
     tag "${sample_id}"
 
@@ -100,7 +101,7 @@ process METH_FREQ_ONT {
     set -euo pipefail
 
     modkit pileup ${input_bam} ${input_bam.getBaseName()}.modkit.bedmethyl --ref ${mt_ref} --threads ${task.cpus} \
-    --motif CG 0 --motif CH 0 --ignore a --log-filepath modkit.log --header --no-filtering
+    --motif CG 0 --ignore a --log-filepath modkit.log --header --no-filtering
     
     """
 }

@@ -196,10 +196,10 @@ else:
 
 input_bam = args.input
 input_bam_name_sorted = prefix + ".sortedbyname.bam"
-filtered_bam = prefix + ".filtered.bam"
-filtered_bam_name_sorted = prefix + ".filtered.sortedbyname.bam"
-discarded_bam = prefix + ".discardReads.bam"
-discarded_bam_name_sorted = prefix + ".discardReads.sortedbyname.bam"
+filtered_bam = prefix + ".mt.bam"
+filtered_bam_name_sorted = prefix + ".mt.sortedbyname.bam"
+discarded_bam = prefix + ".discard.bam"
+discarded_bam_name_sorted = prefix + ".discard.sortedbyname.bam"
 
 # Perform sorting by name
 pysam.sort("-n", "-o", input_bam_name_sorted, input_bam)

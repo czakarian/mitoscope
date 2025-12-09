@@ -1,7 +1,7 @@
 process FILTER_NUMTS {
 
     publishDir path: "${params.outdir}/${sample_id}/alignments/", pattern: "*.{bam,bai}", mode: 'copy'
-    publishDir path: "${params.outdir}/${sample_id}/methylation/plots", pattern: "*.png", mode: 'copy'
+    publishDir path: "${params.outdir}/${sample_id}/qc/methylation/", pattern: "*.png", mode: 'copy'
     publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'copy'
     container params.python
     tag "${sample_id}"
@@ -10,10 +10,10 @@ process FILTER_NUMTS {
     tuple val(sample_id),path(bam_file), path(bam_file_index)
 
     output:
-    tuple val(sample_id), path("${bam_file.baseName}.filtered.bam"), path("${bam_file.baseName}.filtered.bam.bai"), emit: filtered_bam
-    tuple val(sample_id), path("${bam_file.baseName}.discardReads.bam"), path("${bam_file.baseName}.discardReads.bam.bai"), emit: numt_bam
-    path("${bam_file.baseName}.methylation_per_read.png")
-    path("${bam_file.baseName}.methylation_likelihood.png")
+    tuple val(sample_id), path("${sample_id}.mt.bam"), path("${sample_id}.mt.bam.bai"), emit: filtered_bam
+    tuple val(sample_id), path("${sample_id}.discard.bam"), path("${sample_id}.discard.bam.bai")
+    path("${sample_id}.methylation_per_read.png")
+    path("${sample_id}.methylation_likelihood.png")
     // path("${bam_file.baseName}.ref_consuming_hist_kde.png")
     path("filter_bam.log")
 
