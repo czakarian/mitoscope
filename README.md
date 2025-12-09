@@ -63,10 +63,10 @@ sample4,/path/to/sample4.bam
 
 # Outputs
 
-Mitoscope outputs a sample directory with the following subdirectories to the `--outdir` directory.
+Mitoscope outputs a directory for each sample with the following subdirectories to the `--outdir` directory.
 
-| name                | description                                                      |
-|---------------------|----------------------------------------------------------------- |
+| name                 | description                                                     |
+|----------------------|---------------------------------------------------------------- |
 | alignments/          | Bam files for retained mtDNA reads and discarded reads.         |
 | assembly/            | Assembly output from meta-flye.                                 |
 | methylation/         | Methylation calls from modkit/pb-CpG-tools.                     |
