@@ -164,5 +164,8 @@ else:
     columns_to_join = merged_df.columns.tolist()[18:32] 
     merged_df['new_joined_column'] = merged_df[columns_to_join].agg("|".join, axis=1)
 
+    merged_df['POS'] = merged_df['POS'].astype(int)
+    merged_df = merged_df.sort_values(by='POS')
+
     ## output annotated file and heteroplasmy plot
     merged_df.to_csv(f"{input_prefix}.mitomap.txt", sep='\t', index=False)
