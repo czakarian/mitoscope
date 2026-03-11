@@ -1,6 +1,6 @@
 process NUMT_DETECTION_SNIFFLES {
 
-    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{vcf,snf}", mode: 'copy'
+    // publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{vcf,snf}", mode: 'copy'
     publishDir "${params.outdir}/${sample_id}/logs/", pattern: "*.log", mode: 'copy'
     container params.sniffles
     tag "${sample_id}"
@@ -24,7 +24,6 @@ process NUMT_DETECTION_SNIFFLES {
     sniffles \
     --reference ${ref} \
     --minsvlen 20 \
-    --minsupport ${params.min_sv_support} \
     --threads ${task.cpus} \
     --input ${input_cram} \
     --vcf ${sample_id}.numts.INS.sniffles.vcf
@@ -33,7 +32,7 @@ process NUMT_DETECTION_SNIFFLES {
 
 process NUMT_DETECTION_INSERTIONS_TO_FASTA {
 
-    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{fasta}", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{fasta}", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -54,7 +53,7 @@ process NUMT_DETECTION_INSERTIONS_TO_FASTA {
 
 process NUMT_DETECTION_INSERTIONS_BLAST {
 
-    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{txt}", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{txt}", mode: 'copy'
     container params.blast
     tag "${sample_id}"
 
@@ -129,67 +128,19 @@ process NUMT_DETECTION_SUPPLEMENTARY {
     path ref
 
     output:
-    tuple val(sample_id), path("${sample_id}.numts.SA.bam")
-    path('examine.txt')
-    path('df.csv')
+    // tuple val(sample_id), path("${sample_id}.numts.SA.bam"), emit:bam
+    // path('examine.txt')
+    path("${sample_id}.numts.SA.csv")
 
     script:
     """
     set -euo pipefail
 
-    numt_detection_sa.py -i ${input_cram} -o "${sample_id}.numts.SA.bam" -r ${ref} > examine.txt
+    numt_detection_sa.py -i ${input_cram} -o ${sample_id} -r ${ref} > examine.txt
 
     """
 }
 
-process NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES {
-
-    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{vcf,snf}", mode: 'copy'
-    container params.sniffles
-    tag "${sample_id}"
-
-    input:
-    tuple val(sample_id), path(input_bam)
-    path ref
-
-    output:
-    tuple val(sample_id), path("${sample_id}.numts.SA.sniffles.vcf"), emit: vcf
-
-    script:
-    """
-    set -euo pipefail
-
-    sniffles --qc-output-all --output-rnames \
-    --reference ${ref} \
-    --minsvlen 20 \
-    --minsupport ${params.min_sv_support} \
-    --threads ${task.cpus} \
-    --input ${input_bam} \
-    --vcf ${sample_id}.numts.SA.sniffles.vcf
-    """
-}
-
-
-process NUMT_DETECTION_SUPPLEMENTARY_SNIFFLES_FILTER {
-    
-    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{vcf,snf}", mode: 'copy'
-    container params.bcftools
-    tag "${sample_id}"
-
-    input:
-    tuple val(sample_id), path(sniffles_vcf)
-
-    output:
-    tuple val(sample_id), path("${sample_id}.numts.SA.sniffles.ge${params.min_sv_support}.vcf")
-
-    script:
-    """
-    set -euo pipefail
-
-    bcftools filter -i "SUPPORT>=${params.min_sv_support}" ${sniffles_vcf} > ${sample_id}.numts.SA.sniffles.ge${params.min_sv_support}.vcf
-
-    """
-}
 
 process NUMT_DETECTION_PLOT {
 

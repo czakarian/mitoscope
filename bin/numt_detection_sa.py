@@ -33,20 +33,21 @@ def get_cigar_counts(cigar):
     return counts
 
 input_file = args.input
-output_file = args.output
+output_prefix = args.output
 ref_file = args.reference
 
-df = pd.DataFrame(columns=['mt_start', 'mt_end', 'nuc_start_chrom', 'nuc_start_pos', 'nuc_end_chrom', 'nuc_end_pos'])
+df = pd.DataFrame(columns=['mt_start', 'mt_end', 'nuc_start_chrom', 'nuc_start_pos', 'nuc_end_pos'])
 
 breakend_dict = {}
 
 fr = pysam.AlignmentFile(input_file, 'rc', reference_filename=ref_file)
-fw = pysam.AlignmentFile(output_file, 'wb', template=fr)
+fw = pysam.AlignmentFile(output_prefix + ".numts.SA.bam", 'wb', template=fr)
 
 for read in fr.fetch('chrM'):
     write = False
     if read.has_tag('SA:Z'):
         splits = read.get_tag('SA:Z').split(';')
+        splits.remove('')
         for part in splits:
             if part != '':
                 chrom = part.split(',')[0]
@@ -58,43 +59,86 @@ for read in fr.fetch('chrM'):
             cigar_counts = get_cigar_counts(read.cigarstring)
             reference_consuming = cigar_counts['M'] + cigar_counts['D']
 
-            leading_sc = re.match(r'^(\d+)S', read.cigarstring)
-            trailing_sc = re.search(r'(\d+)S$', read.cigarstring)
+
+            leading_sc = re.match(r'^(\d+)[SH]', read.cigarstring)
+            leading_sc_int = -1
+            trailing_sc = re.search(r'(\d+)[SH]$', read.cigarstring)
+            trailing_sc_int = -1
 
             if trailing_sc:
                 mt_breakend_end = read.reference_start + reference_consuming
+                trailing_sc_int = int(trailing_sc[1])
             else:
+                trailing_sc_int = 0
                 mt_breakend_end = -1
+                nuc_end_chrom = -1
+                nuc_end_pos = -1
 
             if leading_sc:
                 mt_breakend_start = read.reference_start
+                leading_sc_int = int(leading_sc[1])
             else:
+                leading_sc_int = 0
                 mt_breakend_start = -1
+                nuc_start_chrom = -1
+                nuc_start_pos = -1
 
+            print(f'trailing sc: {trailing_sc_int}')
+            print(f'leading sc: {leading_sc_int}')
             print(read.reference_start)
             print(read.cigarstring)
             print(read.get_tag('SA:Z').split(';'))
 
-            new_row_data = [mt_breakend_start, mt_breakend_end, -1, -1, -1, -1 ]
-            df.loc[len(df)] = new_row_data 
+            if len(splits) == 1:
+                sa_chrom, sa_pos, sa_strand, sa_cigar, *_ = splits[0].split(",")
+                sa_cigar_counts = get_cigar_counts(sa_cigar)
+                sa_reference_consuming = sa_cigar_counts['M'] + sa_cigar_counts['D']
                 
-            if (mt_breakend_start, mt_breakend_end) not in breakend_dict:
-                breakend_dict[(mt_breakend_start, mt_breakend_end)] = 1
-            else:
-                breakend_dict[(mt_breakend_start, mt_breakend_end)] += 1
+                if leading_sc_int > trailing_sc_int:
+                    mt_breakend_end = -1
+                    nuc_breakend_1 = int(sa_pos)
+                else:
+                    mt_breakend_start = -1
+                    nuc_breakend_1 = int(sa_pos) + sa_reference_consuming
+                    
+                new_row_data = [mt_breakend_start, mt_breakend_end, sa_chrom, nuc_breakend_1, -1]
+                print(new_row_data)
 
-            # if soft clipping at only 1 end (1 breakend)
-            # identify where the one softclipped portion maps
-            # if softclipping at beginning vs end?
-            #splits = read.get_tag('SA:Z').split(';')
-            # if soft clipping at 2 ends (1 breakend)
+            elif len(splits) == 2:
+                ## first check if both splits to same chrom -- if not skip
+                sa_chrom1, *_ = splits[0].split(",")
+                sa_chrom2, *_ = splits[0].split(",")
 
+                if sa_chrom1 == sa_chrom2:
+                    nuclear_intervals = []
 
-for be in breakend_dict:
-    if breakend_dict[be] > 2 and be[0] != 0 and be[1] != 16569:
-        print(f'{be}\t{breakend_dict[be]}')
+                    for sa in splits:
+
+                        sa_chrom, sa_pos, sa_strand, sa_cigar, *_ = sa.split(",")
+                        
+                        sa_cigar_counts = get_cigar_counts(sa_cigar)
+                        sa_reference_consuming = sa_cigar_counts['M'] + sa_cigar_counts['D']
+                        sa_start_pos = int(sa_pos)
+                        sa_end_pos = int(sa_pos) + sa_reference_consuming
+
+                        nuclear_intervals.append((sa_chrom, sa_start_pos, sa_end_pos))
+                        print((sa_chrom, sa_start_pos, sa_end_pos))
+
+                    nuc_breakend_1  = min([end for _, start, end in nuclear_intervals])
+                    nuc_breakend_2 = max([start for _, start, end in nuclear_intervals])
+
+                    new_row_data = [mt_breakend_start, mt_breakend_end, sa_chrom1, nuc_breakend_1, nuc_breakend_2]
+                    print(new_row_data)
+                else:
+                    continue
+
+            elif len(splits) > 2:
+                continue
+
+            ### add row to df 
+            df.loc[len(df)] = new_row_data 
 
 
 df_collapsed = df.groupby(df.columns.tolist(), dropna=False).size().reset_index(name='count')
-df_collapsed = df_collapsed[df_collapsed['count'] > 1]
-df_collapsed.to_csv('df.csv', index=False)
+df_collapsed = df_collapsed[(df_collapsed['count'] >= 4) & (df_collapsed['mt_start'] != 0) & (df_collapsed['mt_end'] != 16569)]
+df_collapsed.to_csv(output_prefix + '.numts.SA.csv', index=False)

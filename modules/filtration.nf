@@ -14,7 +14,8 @@ process FILTER_NUMTS {
     tuple val(sample_id), path("${sample_id}.discard.bam"), path("${sample_id}.discard.bam.bai")
     path("${sample_id}.methylation_per_read.png")
     path("${sample_id}.methylation_likelihood.png")
-    // path("${bam_file.baseName}.ref_consuming_hist_kde.png")
+    //path("${sample_id}.unaligned_sc_hist.png")
+    //path("${sample_id}.ref_consuming_hist_kde.png")
     path("filter_bam.log")
 
     script:
@@ -27,8 +28,7 @@ process FILTER_NUMTS {
 
     filter_bam.py -i ${bam_file} \
     --max_sc_threshold ${params.max_sc_threshold} \
-    --max_meth_threshold ${params.max_meth_threshold_per_read} \
-    > filter_bam.log
+    --max_meth_threshold ${params.max_meth_threshold_per_read} > filter_bam.log
     """
 }
 

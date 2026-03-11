@@ -10,6 +10,7 @@ import seaborn as sns
 import re
 import os
 import matplotlib.pyplot as plt
+import pandas as pd
 
 def get_args():
     parser = argparse.ArgumentParser(description="Filters out reads in bam file representative of NUMTs and fold-backs (split reads with +/- alignments).")
@@ -31,6 +32,9 @@ def get_cigar_counts(cigar):
     """
     counts = {'M': 0, 'I': 0, 'D': 0, 'N': 0, 'S': 0, 'H': 0}
     
+    if not cigar:
+        return None
+
     # Regular expression to find all operations and their counts
     matches = re.findall(r'(\d+)([MIDNSH])', cigar)
     
@@ -84,7 +88,6 @@ def methylation_plot(meth_per_read_list, meth_prob_likelihood):
     plt.xlabel('Fraction of methylated CpG sites (5mC)')
     plt.ylabel('# of Reads')
     plt.xlim(0,1)
-    #plt.grid(True)
     plt.savefig(prefix + '.methylation_per_read.png', dpi=300)
     plt.close()
 
@@ -93,7 +96,7 @@ def methylation_plot(meth_per_read_list, meth_prob_likelihood):
     plt.xlabel('Methylation Likelihood (5mC)')
     plt.ylabel('# of CpG sites')
     plt.tight_layout()
-    #plt.grid(True)
+    plt.yscale('log')
     plt.savefig(prefix + '.methylation_likelihood.png', dpi=300)
     plt.close()
 
@@ -103,12 +106,43 @@ def plot_ref_consuming_lengths(ref_cons_lengths):
     """
 
     plt.figure(figsize=(6, 4))
-    sns.histplot(ref_cons_lengths, bins=50, kde=True, color='blue', edgecolor=None)
+    sns.histplot(ref_cons_lengths, bins=50, kde=False, color='blue', edgecolor=None)
     plt.axvline(x=16569, color='red', linestyle='--', linewidth=1)
     plt.xlabel('Reference-consuming length')
     plt.ylabel('# of Reads')
     plt.tight_layout()
     plt.savefig(prefix + '.ref_consuming_hist_kde.png', dpi=300)
+    plt.close()
+
+def unaligned_plot(unaligned_per_read_list):
+    """
+    """
+
+    plt.figure(figsize=(6, 4))
+    sns.histplot(unaligned_per_read_list, bins=200, kde=False, color='blue', edgecolor=None)
+    plt.axvline(x=200, color='red', linestyle='--', linewidth=1)
+    plt.xlabel('Amount of unaligned soft-clipping (bp)')
+    plt.ylabel('# of Reads')
+    plt.tight_layout()
+    plt.yscale('log')
+    plt.xscale('log')
+    plt.savefig(prefix + '.unaligned_sc_hist.png', dpi=300)
+    plt.close()
+
+def combined_methylation_unaligned_plot(meth_list, unaligned_list):
+
+    data = {'meth':meth_list, 'unaligned':unaligned_list}
+    df = pd.DataFrame(data)
+
+    plt.figure(figsize=(6, 4))
+    sns.scatterplot(df, x=df['meth'], y=df['unaligned'], s=4)
+    plt.axvline(x=0.5, color='red', linestyle='--', linewidth=1)
+    plt.axhline(y=200, color='red', linestyle='--', linewidth=1)
+    plt.xlabel('Fraction of methylated CpG sites (5mC)')
+    plt.ylabel('Unaligned soft-clipping (bp)')
+    plt.xlim(0,1)
+    plt.yscale('log')
+    plt.savefig(prefix + '.comb_meth_unaligned_plot.png', dpi=300)
     plt.close()
 
 
@@ -123,7 +157,20 @@ def is_foldback(read_parts):
     strands = {line.is_reverse for line in read_parts}
     return len(strands) > 1
 
-def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth_per_read_list, meth_prob_likelihood, ref_cons_lengths):
+
+def is_unaligned(read_parts):
+    """
+    Check if a read has unaligned segments.
+    Args:
+        read_parts (list): List of lines from bam (pysam) with same read name.
+    Returns:
+        bool: True if there is unmapped (0x4) segment present.
+    """
+    unmapped_segments = {line.is_unmapped for line in read_parts}
+    if True in unmapped_segments:
+        return True
+
+def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth_per_read_list, meth_prob_likelihood, ref_cons_lengths, unaligned_per_read_list):
     """
     Determine whether a read resembles a NUMT sequence based on level of unaligned soft-clipping across alignments as well as methylation level of the read.
     Args:
@@ -143,6 +190,7 @@ def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth
     
     for line in read_parts:
         cigar_counts = get_cigar_counts(line.cigarstring)
+
         total_query_lengths.append(cigar_counts['M'] + cigar_counts['I'] + cigar_counts['S'] + cigar_counts['H'])
         mapped_query_length += cigar_counts['M'] + cigar_counts['I']
         reference_consuming += cigar_counts['M'] + cigar_counts['D']
@@ -153,6 +201,7 @@ def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth
         print('Warning: Query lengths differ between alignments with same read name.')
 
     unaligned_bases = total_query_lengths[0] - mapped_query_length
+    unaligned_per_read_list.append(unaligned_bases)
 
     ## 2. check methylation level for read
     meth_level = methylated_read_portion(read_parts[0], meth_prob_likelihood)
@@ -163,7 +212,7 @@ def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth
     else:
         return False
 
-def process_read_group(read_parts, read_counts, meth_per_read_list, keep_file_handle, discard_file_handle, meth_prob_likelihood, ref_cons_lengths):
+def process_read_group(read_parts, read_counts, meth_per_read_list, keep_file_handle, discard_file_handle, meth_prob_likelihood, ref_cons_lengths, unaligned_per_read_list):
     """
     Process a group of reads and categorize as foldback, NUMT, or kept read.
     Args:
@@ -176,9 +225,11 @@ def process_read_group(read_parts, read_counts, meth_per_read_list, keep_file_ha
     Returns:
         None
     """
-    if is_foldback(read_parts):
+    if is_unaligned(read_parts):
+        category, target = 'unaligned', discard_file_handle
+    elif is_foldback(read_parts):
         category, target = 'foldback', discard_file_handle
-    elif is_NUMT(read_parts, args.max_sc_threshold, args.max_meth_threshold, meth_per_read_list, meth_prob_likelihood, ref_cons_lengths):
+    elif is_NUMT(read_parts, args.max_sc_threshold, args.max_meth_threshold, meth_per_read_list, meth_prob_likelihood, ref_cons_lengths, unaligned_per_read_list):
         category, target = 'numt', discard_file_handle
     else:
         category, target = 'kept', keep_file_handle
@@ -208,29 +259,32 @@ fr = pysam.AlignmentFile(input_bam_name_sorted, 'rb')
 fw = pysam.AlignmentFile(filtered_bam_name_sorted, 'wb', template= fr)
 fd = pysam.AlignmentFile(discarded_bam_name_sorted, 'wb', template= fr)
 
-read_counts = {"foldback": 0, "numt": 0, "kept": 0}
+read_counts = {"foldback": 0, "numt": 0, "kept": 0, "unaligned": 0}
 read_parts = []
 current_readname = None
 percent_meth_per_read = []
 meth_prob_likelihood = []
 ref_consuming_lengths = []
+unaligned_per_read = []
 
 for line in fr:
     if current_readname == line.query_name:
         read_parts.append(line)
     else:
         if read_parts:  # Process the previous group
-            process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood, ref_consuming_lengths)
+            process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood, ref_consuming_lengths, unaligned_per_read)
         read_parts = [line]
         current_readname = line.query_name
 
 # Process the final group
 if read_parts:
-    process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood, ref_consuming_lengths)
+    process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood, ref_consuming_lengths, unaligned_per_read)
 
 ## plot distribution of read methylation
 methylation_plot(percent_meth_per_read, meth_prob_likelihood)
 plot_ref_consuming_lengths(ref_consuming_lengths)
+unaligned_plot(unaligned_per_read)
+combined_methylation_unaligned_plot(percent_meth_per_read, unaligned_per_read)
 
 ## close read/write files
 fr.close()
@@ -251,3 +305,4 @@ os.remove(discarded_bam_name_sorted)
 print("Number of mitochondrial reads: ", read_counts["kept"])
 print("Number of reads discarded as foldback: ", read_counts["foldback"])
 print("Number of reads discarded as NUMTs: ", read_counts["numt"])
+print("Number of reads discarded as unmapped: ", read_counts["unaligned"])

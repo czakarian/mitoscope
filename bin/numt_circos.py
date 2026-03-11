@@ -66,6 +66,8 @@ links_df = links_df[['sstart', 'send', 'qseqid', 'length']]
 links_df[['refchrom', 'refstart']] = links_df['qseqid'].str.split('-', expand=True)
 links_df['refend'] = links_df['refstart'].astype(int) + 1
 links_df = links_df[links_df['refchrom'] != 'chrM']
+links_df = links_df[links_df['refchrom'].isin(chr_names)]
+
 
 # ---- Plot each link ----
 for _, row in links_df.iterrows():
