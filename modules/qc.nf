@@ -15,7 +15,7 @@ process MT_COVERAGE {
     """
     set -euo pipefail
 
-    mosdepth ${input_bam.getBaseName()} ${input_bam}
+    mosdepth ${input_bam.getBaseName()} ${input_bam} --threads ${task.cpus}
     """
 
 }
@@ -29,6 +29,7 @@ process NUCLEAR_COVERAGE {
     input:
     tuple val(sample_id), path(input_cram), path(input_cram_index)
     path ref
+    path nuc_intervals_bed
 
     output:
     tuple val(sample_id), path("${sample_id}.mosdepth.summary.txt"), emit: mosdepth_summary
@@ -37,7 +38,7 @@ process NUCLEAR_COVERAGE {
     """
     set -euo pipefail
 
-    mosdepth ${sample_id} ${input_cram} --fasta ${ref} --threads ${task.cpus} --no-per-base --fast-mode
+    mosdepth ${sample_id} ${input_cram} --fasta ${ref} --by ${nuc_intervals_bed} --threads ${task.cpus} --no-per-base --fast-mode
     """
 }
 
@@ -110,19 +111,22 @@ process QC_SUMMARY {
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(nuclear_coverage_file), path(assembly_info_file), path(haplogrep_file)
+    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(nuclear_coverage_file), path(haplogrep_file), path(kmer_read_count), path(chrM_read_count)
 
     output:
     path("${sample_id}.qc_summary.tsv")
 
     """
+    chrM_rc=\$(cat ${chrM_read_count})
+    kmer_rc=\$(cat ${kmer_read_count})
+
     qc_summary.py \
     -c ${mosdepth_summary_file} \
     -r ${read_lengths_file} \
     -n ${nuclear_coverage_file} \
     -g ${haplogrep_file} \
-    -a ${assembly_info_file} \
-    -d ${params.num_downsampled_reads} \
+    -m "\${chrM_rc}" \
+    -k "\${kmer_rc}" \
     -s ${sample_id}
     """
 }
@@ -134,18 +138,19 @@ process QC_SUMMARY_FOR_UNALIGNED_INPUT {
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(assembly_info_file), path(haplogrep_file)
+    tuple val(sample_id), path(mosdepth_summary_file), path(read_lengths_file), path(haplogrep_file), path(kmer_read_count)
 
     output:
     path("${sample_id}.qc_summary.tsv")
 
     """
+    kmer_rc=\$(cat ${kmer_read_count})
+
     qc_summary.py \
     -c ${mosdepth_summary_file} \
     -r ${read_lengths_file} \
     -g ${haplogrep_file} \
-    -a ${assembly_info_file} \
-    -d ${params.num_downsampled_reads} \
+    -k "\${kmer_rc}" \
     -s ${sample_id}
     """
 }
