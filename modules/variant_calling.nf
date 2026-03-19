@@ -175,6 +175,27 @@ process ADD_MITOMAP_TO_BALDUR_VCF {
 
 }
 
+process MERGE_BALDUR_VCFS {
+    publishDir "${params.outdir}/", mode: 'copy'
+    container params.bcftools
+
+    input:
+    path baldur_vcfs
+    path baldur_indexes
+
+    output:
+    tuple path("merged.mt.baldur.annotated.vcf.gz"), path("merged.mt.baldur.annotated.vcf.gz.tbi")
+
+    script:
+    """
+    set -euo pipefail
+
+    bcftools merge -m none ${baldur_vcfs} -Oz -o merged.mt.baldur.annotated.vcf.gz
+    bcftools index --tbi merged.mt.baldur.annotated.vcf.gz
+
+    """
+}
+
 process VARIANT_CALLS_MUTSERVE {
 
     // publishDir "${params.outdir}/${sample_id}/variants/mutserve/", mode: 'copy'

@@ -25,11 +25,6 @@ workflow {
         error "Missing one of required parameters: samplesheet, input_type, is_aligned, outdir, platform, reference"
     }
     
-    Channel.fromPath(params.mt_ref)
-        .map { ref -> tuple(ref, file("${ref}.fai")) }
-        .first()
-        .set { mt_ref_ch }
-    
     if (params.platform == "pb") {
         Channel.fromPath(params.mt_mmi_hifi, checkIfExists: true)
             .first()
@@ -70,10 +65,7 @@ workflow {
  
     ASSEMBLY(MT_SELECTION.out.filtered_fastq_ch)
 
-    VARIANT_CALLING(
-        MT_SELECTION.out.filtered_bam_ch,
-        mt_ref_ch,
-    )
+    VARIANT_CALLING(MT_SELECTION.out.filtered_bam_ch)
 
     QUALITY_CONTROL(
         samples_ch, 
