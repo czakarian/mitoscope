@@ -36,7 +36,7 @@ input_file = args.input
 output_prefix = args.output
 ref_file = args.reference
 
-df = pd.DataFrame(columns=['mt_start', 'mt_end', 'nuc_start_chrom', 'nuc_start_pos', 'nuc_end_pos'])
+df = pd.DataFrame(columns=['nuc_chrom', 'nuc_position1', 'nuc_position2', 'mt_start', 'mt_end'])
 
 breakend_dict = {}
 
@@ -101,7 +101,7 @@ for read in fr.fetch('chrM'):
                     mt_breakend_start = -1
                     nuc_breakend_1 = int(sa_pos) + sa_reference_consuming
                     
-                new_row_data = [mt_breakend_start, mt_breakend_end, sa_chrom, nuc_breakend_1, -1]
+                new_row_data = [sa_chrom, nuc_breakend_1, -1, mt_breakend_start, mt_breakend_end]
                 print(new_row_data)
 
             elif len(splits) == 2:
@@ -127,7 +127,7 @@ for read in fr.fetch('chrM'):
                     nuc_breakend_1  = min([end for _, start, end in nuclear_intervals])
                     nuc_breakend_2 = max([start for _, start, end in nuclear_intervals])
 
-                    new_row_data = [mt_breakend_start, mt_breakend_end, sa_chrom1, nuc_breakend_1, nuc_breakend_2]
+                    new_row_data = [sa_chrom1, nuc_breakend_1, nuc_breakend_2, mt_breakend_start, mt_breakend_end]
                     print(new_row_data)
                 else:
                     continue
@@ -139,6 +139,6 @@ for read in fr.fetch('chrM'):
             df.loc[len(df)] = new_row_data 
 
 
-df_collapsed = df.groupby(df.columns.tolist(), dropna=False).size().reset_index(name='count')
-df_collapsed = df_collapsed[(df_collapsed['count'] >= 4) & (df_collapsed['mt_start'] != 0) & (df_collapsed['mt_end'] != 16569)]
-df_collapsed.to_csv(output_prefix + '.numts.SA.csv', index=False)
+df_collapsed = df.groupby(df.columns.tolist(), dropna=False).size().reset_index(name='read_count')
+df_collapsed = df_collapsed[(df_collapsed['read_count'] >= 4) & (df_collapsed['mt_start'] != 0) & (df_collapsed['mt_end'] != 16569)]
+df_collapsed.to_csv(output_prefix + '.numts.SA.tsv', sep='\t', index=False)
