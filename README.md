@@ -1,6 +1,6 @@
 # Mitoscope
 
-Mitoscope is long-read specific mitochondrial analysis tool that performs NUMT filtration, de novo assembly, variant calling (SNV, indel, SV), and methylation calling. It is built as a fully containerized Nextflow workflow using Singularity images and can be run on either ONT or PacBio data. Raw sequencing data or aligned reads are both accepted as input.
+Mitoscope is a long-read specific mitochondrial analysis workflow to assembly mtDNA, perform heteroplasmic variant calling (of SNVs, indels, and SVs), and characterize non-reference NUMTs. It is built as a fully containerized Nextflow workflow using Singularity images and can be run on either ONT or PacBio data. Raw sequencing data or aligned reads are both accepted as input.
 
 **mitoScope is currently in active development. Open an [issue](https://github.com/czakarian/mitoscope/issues/new) if you find a problem or have a suggestion.**
 
@@ -16,7 +16,7 @@ Mitoscope is long-read specific mitochondrial analysis tool that performs NUMT f
 - Singularity
 ## Setup
 ```bash
-VERSION=0.1.0
+VERSION=0.2.2
 wget https://github.com/czakarian/mitoscope/archive/refs/tags/v${VERSION}.tar.gz
 tar xvf v${VERSION}.tar.gz && rm v${VERSION}.tar.gz
 cd mitoscope-${VERSION}/
@@ -49,6 +49,9 @@ outdir: "/path/to/output/dir/result"
 reference: "/path/to/ref/for/cram/GRCH38.fa" 
 ```
 
+#### Optional Parameters
+
+To call non-reference NUMT candidates, add `numt_profiling: true` to the yaml file. This functionality is turned off by default to otherwise reduce computational load. 
 
 ### Sample Manifest
 One of the required parameters in the yaml file is the path to a sample manifest (`samplesheet`). See below or `example_sample_manifest.csv` for example.
@@ -63,13 +66,14 @@ sample4,/path/to/sample4.bam
 
 # Outputs
 
-Mitoscope outputs a directory for each sample with the following subdirectories to the `--outdir` directory.
+Mitoscope outputs a directory for each sample with the following subdirectories.
 
 | name                 | description                                                     |
 |----------------------|---------------------------------------------------------------- |
 | alignments/          | Bam files for retained mtDNA reads and discarded reads.         |
 | assembly/            | Assembly output from meta-flye.                                 |
 | methylation/         | Methylation calls from modkit/pb-CpG-tools.                     |
+| numts/               | Non-reference NUMT candidates.                                  |
 | qc/                  | QC metrics.                                                     |
 | variants/            | Variant calls (snv/indel, SV)                                   |
 | logs/                | Log files.                                                      |
