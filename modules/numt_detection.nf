@@ -87,7 +87,7 @@ process NUMT_DETECTION_INSERTIONS_TO_FASTA {
     """
     set -euo pipefail
 
-    bcftools view -i 'SVTYPE=="INS"' ${input_vcf} | grep -v '^#' | awk '\$5 != "<INS>" {split(\$10, fields, ":"); print ">" \$1 "-" \$2 "-" fields[4] "\\n" \$5}' > ${sample_id}.numts.INS.fasta
+    bcftools view -i 'SVTYPE=="INS"' ${input_vcf} | grep -v '^#' | awk '\$5 != "<INS>" {split(\$10, fields, ":"); print ">" \$1 "-" \$2 "-" fields[3] "-" fields[4] "\\n" \$5}' > ${sample_id}.numts.INS.fasta
 
     """
 }
@@ -140,7 +140,7 @@ process NUMT_DETECTION_MTDNA_INSERTIONS_TO_FASTA {
 
 process NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK {
 
-    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{tsv}", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{tsv,txt}", mode: 'copy'
     container params.blast
     tag "${sample_id}"
 
@@ -158,8 +158,8 @@ process NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK {
 
     blastn -query ${input_fasta} -db ${blast_db}/hg38 -word_size 25 -outfmt 6 -num_threads ${task.cpus} -task blastn -perc_identity 95 -max_target_seqs 1 | awk '\$2 == "chrM"' > "${sample_id}.numts.INS.blast.mtDNA.txt"
     
-    echo -e "nuc_chrom\tnuc_position\tmt_start\tmt_end\tread_support" > "${sample_id}.numts.INS.tsv"
-    awk '{split(\$1, id_parts, "-"); print id_parts[1]"\t"id_parts[2]"\t"\$9"\t"\$10"\t"id_parts[3]}' "${sample_id}.numts.INS.blast.mtDNA.txt" >> "${sample_id}.numts.INS.tsv"
+    echo -e "nuc_chrom\tnuc_position\tmt_start\tmt_end\tDR\tDV\tAF" > "${sample_id}.numts.INS.tsv"
+    awk '{split(\$1, id_parts, "-"); print id_parts[1]"\t"id_parts[2]"\t"\$9"\t"\$10"\t"id_parts[3]"\t"id_parts[4]"\t"id_parts[4]/(id_parts[3]+id_parts[4])}' "${sample_id}.numts.INS.blast.mtDNA.txt" >> "${sample_id}.numts.INS.tsv"
     """
 }
 

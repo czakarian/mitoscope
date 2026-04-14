@@ -63,7 +63,7 @@ for sector in circos.sectors:
 # Example: columns = ["mt_start", "mt_end", "chr", "chr_start", "chr_end"]
 links_df = pd.read_csv(input_file, sep="\t", header=None, names=['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore'])
 links_df = links_df[['sstart', 'send', 'qseqid', 'length']]
-links_df[['refchrom', 'refstart', 'read_support']] = links_df['qseqid'].str.split('-', expand=True)
+links_df[['refchrom', 'refstart', 'DR', 'DV']] = links_df['qseqid'].str.split('-', expand=True)
 links_df['refend'] = links_df['refstart'].astype(int) + 1
 links_df = links_df[links_df['refchrom'] != 'chrM']
 links_df = links_df[links_df['refchrom'].isin(chr_names)]
