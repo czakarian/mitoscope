@@ -190,7 +190,7 @@ process MERGE_BALDUR_VCFS {
     """
     set -euo pipefail
 
-    bcftools merge -m none ${baldur_vcfs} -Oz -o merged.mt.baldur.annotated.vcf.gz
+    bcftools merge --force-single -m none ${baldur_vcfs} -Oz -o merged.mt.baldur.annotated.vcf.gz
     bcftools index --tbi merged.mt.baldur.annotated.vcf.gz
 
     """
