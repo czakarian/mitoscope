@@ -7,6 +7,9 @@ workflow FASTQ_PREP {
         samples_ch
 
     main:
+        // for unaligned inputs
+        chrM_read_count = Channel.empty()
+
         // Generate gzipped fastq file from input 
         if (params.is_aligned) {
             if (params.input_type == 'bam') {
@@ -20,6 +23,8 @@ workflow FASTQ_PREP {
             } 
 
         } else {
+            // drop empty index from tuple
+            samples_ch = samples_ch.map { sample_id, file_path, index_path -> [sample_id, file_path] }
             if (params.input_type == 'bam') {
                 UNALIGNED_BAM_TO_FASTQ(samples_ch)
                 fastq_gz_out = COMPRESS_FASTQ(UNALIGNED_BAM_TO_FASTQ.out.fastq)

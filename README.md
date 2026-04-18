@@ -16,7 +16,7 @@ Mitoscope is a long-read specific mitochondrial analysis workflow to assembly mt
 - Singularity
 ## Setup
 ```bash
-VERSION=0.2.2
+VERSION=0.3.0
 wget https://github.com/czakarian/mitoscope/archive/refs/tags/v${VERSION}.tar.gz
 tar xvf v${VERSION}.tar.gz && rm v${VERSION}.tar.gz
 cd mitoscope-${VERSION}/
@@ -51,7 +51,7 @@ reference: "/path/to/ref/for/cram/GRCH38.fa"
 
 #### Optional Parameters
 
-To call non-reference NUMT candidates, add `numt_profiling: true` to the yaml file. This functionality is turned off by default to otherwise reduce computational load. 
+To call non-reference NUMT candidates, add `numt_profiling: true` to the yaml file. This functionality is turned off by default to otherwise reduce computational load and is only available for use with aligned input.
 
 ### Sample Manifest
 One of the required parameters in the yaml file is the path to a sample manifest (`samplesheet`). See below or `example_sample_manifest.csv` for example.

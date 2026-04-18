@@ -2,3 +2,6 @@ images/*.sif
 images/*.img
 images/trees
 images/scripts
+work/
+debug/
+bin/scratch/*
