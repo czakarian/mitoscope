@@ -8,12 +8,14 @@ import re
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+
 import seaborn as sns
 import numpy as np
 
 def get_args():
     parser = argparse.ArgumentParser(description="Appends annotations from MITOMAP to a VCF file based on position, REF, ALT fields.")
     parser.add_argument("-i", "--input", help="File path of input VCF (assumes gzipped).", required=True)
+    parser.add_argument("-o", "--output_prefix", help="Optional output prefix.", required=False)
     parser.add_argument("-a", "--annotations", help="File path to MITOMAP annotation csv.", required=True)
     parser.add_argument("-c", "--caller", help="Specify VCF caller used to generated VCF - mutserve, mutect2, or baldur", required=True)
     parser.add_argument("-m", "--multisample", help="Specify whether vcf is multisample vcf", action='store_true', default=False)
@@ -101,7 +103,11 @@ def read_vcf(input_file):
 input_file = args.input
 anno_file = args.annotations
 caller = args.caller
-input_prefix = os.path.join(os.path.dirname(input_file), re.sub(r"\.vcf.gz$", "", os.path.basename(input_file)))  
+
+if args.output_prefix:
+    output_prefix = args.output_prefix  
+else:
+    output_prefix = os.path.join(os.path.dirname(input_file), re.sub(r"\.vcf.gz$", "", os.path.basename(input_file)))  
 
 ## read in and format MITOMAP anno file
 anno_df = pd.read_csv(anno_file)
@@ -118,10 +124,10 @@ input_df = read_vcf(input_file)
 
 # in case vcf is empty output empty placeholders
 if (len(input_df) == 0):
-    input_df.to_csv(f"{input_prefix}.mitomap.txt", sep='\t', index=False)
+    input_df.to_csv(f"{output_prefix}.mitomap.txt", sep='\t', index=False)
 
     fig = plt.figure()
-    fig.savefig(f"{input_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
+    fig.savefig(f"{output_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
 else:
     # remove blacklisted 3107 row
     input_df = input_df[input_df.POS != 3107]
@@ -158,7 +164,7 @@ else:
 
     if not args.multisample:
         fig = create_heteroplasmy_plot(merged_df)
-        fig.savefig(f"{input_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
+        fig.savefig(f"{output_prefix}.heteroplasmy.png", dpi=300, bbox_inches='tight')
 
     merged_df = merged_df.fillna('').astype(str)
     columns_to_join = merged_df.columns.tolist()[18:32] 
@@ -168,4 +174,4 @@ else:
     merged_df = merged_df.sort_values(by='POS')
 
     ## output annotated file and heteroplasmy plot
-    merged_df.to_csv(f"{input_prefix}.mitomap.txt", sep='\t', index=False)
+    merged_df.to_csv(f"{output_prefix}.mitomap.txt", sep='\t', index=False)
