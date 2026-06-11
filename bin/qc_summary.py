@@ -18,7 +18,7 @@ args = get_args()
 
 # === Coverage (mosdepth summary) ===
 mito_cov_df = pd.read_csv(args.mito_coverage_file, sep='\t')
-mito_cov = mito_cov_df [mito_cov_df ['chrom'] == 'MT']['mean'].iloc[0]
+mito_cov = mito_cov_df[mito_cov_df['chrom'] == 'MT']['mean'].iloc[0]
 
 # == Nuc coverage & MtDNA copies ===
 if args.nuclear_coverage_file:

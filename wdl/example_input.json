@@ -1,0 +1,27 @@
+{
+  "mitoscope.platform": "pb",
+  "mitoscope.sample_id": "sample_1",
+  "mitoscope.bam_file": "/net/nwgc/vol1/home/czaka/tools/mitoscope/debug/test_inputs/test.pacbio.bam",
+  "mitoscope.bam_file_index": "/net/nwgc/vol1/home/czaka/tools/mitoscope/debug/test_inputs/test.pacbio.bam.bai",
+  "mitoscope.hg38_ref": "/net/nwgc/vol1/home/czaka/ref/smaht/SMAFI23ELK2A.fa",
+  "mitoscope.numt_sniffles_vcf": null,
+  "mitoscope.run_numt_pipeline": false,
+  "mitoscope.script_filter_bam_py": "../bin/filter_bam.py",
+  "mitoscope.script_annotate_py": "../bin/annotate.py",
+  "mitoscope.script_rotate_py": "../bin/rotate.py",
+  "mitoscope.script_qc_plots_py": "../bin/qc_plots.py",
+  "mitoscope.script_qc_summary_py": "../bin/qc_summary.py",
+  "mitoscope.script_numt_circos_py": "../bin/numt_circos.py",
+  "mitoscope.script_numt_detection_sa_py": "../bin/numt_detection_sa.py",
+  "mitoscope.kmc_pre": "../resources/MT.k29.kmc_pre",
+  "mitoscope.kmc_suf": "../resources/MT.k29.kmc_suf",
+  "mitoscope.minimap_index_pb": "../resources/MT-hifi.mmi",
+  "mitoscope.minimap_index_ont": "../resources/MT-ont.mmi",
+  "mitoscope.mt_ref": "../resources/MT.fasta",
+  "mitoscope.mt_ref_index": "../resources/MT.fasta.fai",
+  "mitoscope.mitomap_anno_file": "../resources/annotations/CombinedDiseaseVariantDB.csv",
+  "mitoscope.vep_cache_dir_tar": "../resources/vep.tar.gz",
+  "mitoscope.circos_bed": "../resources/circos.bed",
+  "mitoscope.nuc_intervals_bed": "../resources/nuclear_intervals.bed"
+
+}
