@@ -37,6 +37,8 @@ task meth_freq_ont {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/ont-modkit:0.5.0--hcdda2d0_2"
   }
 
@@ -73,6 +75,8 @@ task meth_freq_pb {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/pb-cpg-tools:3.0.0--h9ee0642_0"
   }
 

@@ -96,6 +96,8 @@ task mt_assembly {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "czakarian/mitoscope-flye_seqtk:1.0"
   }
 

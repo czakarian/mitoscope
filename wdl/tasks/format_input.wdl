@@ -31,6 +31,8 @@ task aligned_bam_to_fastq {
     cpu: threads
     memory: mem_gb + "G"
     disks: "local-disk " + disk_size + " SSD"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/samtools:1.21--h96c455f_1"
   }
 
@@ -61,6 +63,8 @@ task compress_fastq {
     cpu: threads
     memory: mem_gb + " GB"
     disks: "local-disk " + disk_size + " SSD"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/pigz:2.8"
   }
 

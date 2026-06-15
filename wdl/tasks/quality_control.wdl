@@ -24,6 +24,8 @@ task mt_coverage {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/mosdepth:0.3.8--hd299d5a_0" 
     }
 
@@ -56,6 +58,8 @@ task nuclear_coverage {
         cpu: threads
         memory: mem_gb + " GB"
         disks: "local-disk " + disk_size + " SSD"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/mosdepth:0.3.8--hd299d5a_0" 
     }
 
@@ -83,6 +87,8 @@ task mt_read_length {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "czakarian/mitoscope-python:1.0" 
     }
 
@@ -111,6 +117,8 @@ task coverage_plot {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "czakarian/mitoscope-python:1.0" 
     }
 }
@@ -139,6 +147,8 @@ task read_length_plot {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "czakarian/mitoscope-python:1.0" 
     }
 }
@@ -169,6 +179,8 @@ task haplogrep {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/haplogrep3:3.2.2--hdfd78af_1" 
     }
 }
@@ -195,6 +207,8 @@ task haplocheck {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/haplocheck:1.3.3--h2a3209d_2" 
     }
 }
@@ -238,6 +252,8 @@ task qc_summary {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "czakarian/mitoscope-python:1.0" 
     }
 }

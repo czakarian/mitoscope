@@ -23,6 +23,8 @@ task make_rotated_mt_ref {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "czakarian/mitoscope-python:1.0"
     }
 
@@ -56,6 +58,8 @@ task make_blast_dbs {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/blast:2.16.0--h66d330f_5"
     }
 
@@ -92,6 +96,8 @@ task numt_detection_sniffles {
         cpu: threads
         memory: mem_gb + " GB"
         disks: "local-disk " + disk_size + " SSD"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/sniffles:2.6.2--pyhdfd78af_0"
     }
 }
@@ -120,6 +126,8 @@ task numt_detection_insertions_to_fasta {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/bcftools:1.21--h3a4d415_1"
     }
 }
@@ -154,6 +162,8 @@ task numt_detection_insertions_blast {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/blast:2.16.0--h66d330f_5"
     }
 
@@ -185,6 +195,8 @@ task numt_detection_mtdna_insertions_to_fasta {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "czakarian/mitoscope-flye_seqtk:1.0"
     }
 }
@@ -220,6 +232,8 @@ task numt_detection_mtdna_insertions_blast_check {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/blast:2.16.0--h66d330f_5"
     }
 }
@@ -252,6 +266,8 @@ task numt_detection_plot {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "czakarian/mitoscope-python:1.0"
     }
 }
@@ -283,6 +299,8 @@ task numt_detection_supplementary {
         cpu: threads
         memory: mem_gb + " GB"
         disks: "local-disk " + disk_size + " SSD"
+        preemptible: 1
+        maxRetries: 1
         docker: "czakarian/mitoscope-python:1.0"
     }
 

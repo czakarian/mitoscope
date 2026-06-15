@@ -49,6 +49,8 @@ task baldur {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "czakarian/mitoscope-baldur:1.0"
   }
 
@@ -84,6 +86,8 @@ task normalize_vcf {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/bcftools:1.21--h3a4d415_1"
   }
 
@@ -125,6 +129,8 @@ task pull_mitomap_annos {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "czakarian/mitoscope-python:1.0"
   }
 
@@ -178,6 +184,8 @@ task run_vep {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/ensembl-vep:115--pl5321h2a3209d_0"
     }
 }
@@ -219,6 +227,8 @@ task add_mitomap_to_vcf {
     runtime {
         cpu: threads
         memory: mem_gb + " GB"
+        preemptible: 1
+        maxRetries: 1
         docker: "quay.io/biocontainers/bcftools:1.21--h3a4d415_1"
     }
 }
@@ -261,6 +271,8 @@ task sniffles {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/sniffles:2.6.2--pyhdfd78af_0"
   }
 
@@ -295,6 +307,8 @@ task filter_sniffles {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/bcftools:1.21--h3a4d415_1"
   }
 
@@ -332,6 +346,8 @@ task mutserve {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/mutserve:2.0.3--hdfd78af_0"
   }
 

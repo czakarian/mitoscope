@@ -32,6 +32,8 @@ task kmer_selection {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/kmc:3.2.1--hf1761c0_2"
   }
 
@@ -69,6 +71,8 @@ task align_to_ref {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/minimap2:2.24--h7132678_1"
   }
 
@@ -100,6 +104,8 @@ task sam_to_bam {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/samtools:1.21--h96c455f_1"
   }
 
@@ -141,6 +147,8 @@ task filter_numts {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "czakarian/mitoscope-python:1.0"
   }
 
@@ -170,6 +178,8 @@ task filtered_bam_to_fastq {
   runtime {
     cpu: threads
     memory: mem_gb + " GB"
+    preemptible: 1
+    maxRetries: 1
     docker: "quay.io/biocontainers/samtools:1.21--h96c455f_1"
   }
 
