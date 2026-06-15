@@ -322,19 +322,19 @@ workflow mitoscope {
     }
 
     output {
-      File filtered_bam = filter_numts.mt_bam
-      File filtered_bam_index = filter_numts.mt_bam_index
-      File numt_bam = filter_numts.discard_bam
-      File numt_bam_index = filter_numts.discard_bam_index
-      Array[File] assembly_output = mt_assembly.mt_assembly_dir
-      File anno_baldur_vcf = add_mitomap_to_vcf.out_vcf
-      File anno_baldur_vcf_index = add_mitomap_to_vcf.out_vcf_index
-      File? baldur_dels = baldur.baldur_dels
-      File sniffles_svlen5_vcf = filter_sniffles.sniffles_svlen5_vcf
-      File sniffles_svlen50_vcf = filter_sniffles.sniffles_svlen50_vcf
+      File mt_bam = filter_numts.mt_bam
+      File mt_bam_index = filter_numts.mt_bam_index
+      File discard_bam = filter_numts.discard_bam
+      File discard_bam_index = filter_numts.discard_bam_index
+      Array[File] mt_assembly_output = mt_assembly.mt_assembly_dir
+      File mt_snv_indel_vcf = add_mitomap_to_vcf.out_vcf
+      File mt_snv_indel_vcf_index = add_mitomap_to_vcf.out_vcf_index
+      File mt_sv_lt50_vcf = filter_sniffles.sniffles_svlen5_vcf
+      File mt_sv_gt50_vcf = filter_sniffles.sniffles_svlen50_vcf
+      File? mt_deletion_calls_baldur = baldur.baldur_dels
       File qc_table = qc_summary.tsv
-      File? methylation_ont = meth_freq_ont.bedmethyl_CG
-      File? methylation_pb= meth_freq_pb.bed
+      File? mt_methylation_ont = meth_freq_ont.bedmethyl_CG
+      File? mt_methylation_pb= meth_freq_pb.bed
       File? numt_insertion_output = numt_detection_mtdna_insertions_blast_check.tsv_output
       File? numt_insertion_plot = numt_detection_plot.circos_plot
       File? numt_supplementary_output = numt_detection_supplementary.supplementary_numt_tsv
