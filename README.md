@@ -16,7 +16,7 @@ Mitoscope is a long-read specific mitochondrial analysis workflow to assembly mt
 - Singularity
 ## Setup
 ```bash
-VERSION=0.3.0
+VERSION=0.4.0
 wget https://github.com/czakarian/mitoscope/archive/refs/tags/v${VERSION}.tar.gz
 tar xvf v${VERSION}.tar.gz && rm v${VERSION}.tar.gz
 cd mitoscope-${VERSION}/
@@ -42,7 +42,7 @@ The required `-params-file` argument accepts a yaml file with the following para
 example_params.yaml
 ```yaml
 samplesheet: "samples.csv" 
-input_type: "cram" 
+input_type: "bam" 
 is_aligned: true 
 platform: "pb" 
 outdir: "/path/to/output/dir/result" 
