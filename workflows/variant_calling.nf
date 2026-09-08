@@ -1,4 +1,5 @@
 include { VARIANT_CALLS_BALDUR; NORMALIZE_BALDUR_VCF; ANNOTATE_BALDUR; VEP_BALDUR_VCF; ADD_MITOMAP_TO_BALDUR_VCF; MERGE_BALDUR_VCFS} from '../modules/variant_calling.nf'
+include { READ_VARIANT_MATRIX } from '../modules/variant_calling.nf'
 include { VARIANT_CALLS_MUTSERVE } from '../modules/variant_calling.nf'
 include { VARIANT_CALLS_SNIFFLES; FILTER_SNIFFLES_VCF; COMBINE_SV_CALLS} from '../modules/variant_calling.nf'
 include { HAPLOGREP; HAPLOCHECK} from '../modules/haplo.nf'
@@ -34,6 +35,10 @@ workflow VARIANT_CALLING {
         baldur_vcfs = ADD_MITOMAP_TO_BALDUR_VCF.out.anno_vcf.map { it[1]}.collect()
         baldur_indexes = ADD_MITOMAP_TO_BALDUR_VCF.out.anno_vcf.map { it[2]}.collect()
         MERGE_BALDUR_VCFS(baldur_vcfs, baldur_indexes)
+
+        if (params.generate_variant_matrix) {
+            READ_VARIANT_MATRIX(filtered_bam.join(NORMALIZE_BALDUR_VCF.out.norm_vcf), mt_ref_ch)
+        }
 
         // SNV variant calling with mutserve for haplogrep/haplocheck
         VARIANT_CALLS_MUTSERVE(filtered_bam, mt_ref_ch)

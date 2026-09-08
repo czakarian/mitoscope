@@ -6,10 +6,11 @@ import re
 import pandas as pd
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Filters out reads in bam file representative of NUMTs and fold-backs (split reads with +/- alignments).")
+    parser = argparse.ArgumentParser(description="Call NUMT candidates based on split-reads.")
     parser.add_argument("-i", "--input", help="File path of input bam.", required=True)
     parser.add_argument("-o", "--output", help="Optional output prefix", required=True)
     parser.add_argument("-r", "--reference", help="Optional reference for cram files", required=False)
+    parser.add_argument("-m", "--minsupport", help="Minimum required read support for a NUMT candidate", required=False, default=4)
     return parser.parse_args()
 
 args = get_args()
@@ -140,5 +141,5 @@ for read in fr.fetch('chrM'):
 
 
 df_collapsed = df.groupby(df.columns.tolist(), dropna=False).size().reset_index(name='read_count')
-df_collapsed = df_collapsed[(df_collapsed['read_count'] >= 4) & (df_collapsed['mt_start'] != 0) & (df_collapsed['mt_end'] != 16569)]
+df_collapsed = df_collapsed[(df_collapsed['read_count'] >= int(args.minsupport)) & (df_collapsed['mt_start'] != 0) & (df_collapsed['mt_end'] != 16569)]
 df_collapsed.to_csv(output_prefix + '.numts.SA.tsv', sep='\t', index=False)

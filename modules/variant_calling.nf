@@ -1,6 +1,6 @@
 process VARIANT_CALLS_BALDUR {
 
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.baldur_del.txt", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/", pattern: "*.baldur_del.txt", mode: 'copy'
     container params.baldur
     tag "${sample_id}"
 
@@ -48,7 +48,7 @@ process NORMALIZE_BALDUR_VCF {
     """
     set -euo pipefail
 
-    bcftools norm --multiallelics -both ${baldur_vcf} | bcftools norm --atomize --atom-overlaps . | bcftools view -f PASS -Oz -o ${baldur_vcf.getBaseName(2)}.norm.vcf.gz 
+    bcftools norm --multiallelics -both ${baldur_vcf} | bcftools norm --atomize --atom-overlaps . | bcftools view -i 'FMT/HPL>=${params.snv_soft_threshold}' -f PASS -Oz -o ${baldur_vcf.getBaseName(2)}.norm.vcf.gz 
     bcftools index --tbi ${baldur_vcf.getBaseName(2)}.norm.vcf.gz  
 
     """
@@ -57,8 +57,8 @@ process NORMALIZE_BALDUR_VCF {
 
 process ANNOTATE_BALDUR {
     
-    //publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.mitomap.txt", mode: 'copy'
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", pattern: "*.heteroplasmy.png", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/variants/", pattern: "*.mitomap.txt", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/", pattern: "*.heteroplasmy.png", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
@@ -67,8 +67,8 @@ process ANNOTATE_BALDUR {
     path mitomap_anno_file
 
     output:
-    tuple val(sample_id), path("${baldur_norm_vcf.getBaseName(2)}.mitomap.txt"), emit: mitomap_txt
-    path("${baldur_norm_vcf.getBaseName(2)}.heteroplasmy.png") 
+    tuple val(sample_id), path("${baldur_norm_vcf.getBaseName(3)}.mitomap.txt"), emit: mitomap_txt
+    path("${baldur_norm_vcf.getBaseName(3)}.heteroplasmy.png") 
 
     script:
     """
@@ -80,13 +80,14 @@ process ANNOTATE_BALDUR {
 
     annotate.py \
     --input ${baldur_norm_vcf} \
+    --output_prefix ${baldur_norm_vcf.getBaseName(3)} \
     --annotations ${mitomap_anno_file} \
     --caller baldur 
     """
 }
 
 process VEP_BALDUR_VCF {
-    //publishDir "${params.outdir}/${sample_id}/variants/baldur/", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/variants/", mode: 'copy'
     container params.vep
     tag "${sample_id}"
 
@@ -143,7 +144,7 @@ process VEP_BALDUR_VCF {
 }
 
 process ADD_MITOMAP_TO_BALDUR_VCF {
-    publishDir "${params.outdir}/${sample_id}/variants/baldur/", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -312,7 +313,7 @@ process VARIANT_CALLS_SNIFFLES {
 
 process FILTER_SNIFFLES_VCF {
     
-    publishDir "${params.outdir}/${sample_id}/variants/sniffles/", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/variants/", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -361,3 +362,34 @@ process COMBINE_SV_CALLS {
 
 }
 
+
+process READ_VARIANT_MATRIX {
+    
+    publishDir "${params.outdir}/${sample_id}/variants/read_variant_matrix", mode: 'copy'
+    container params.python
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(input_bam), path(input_bam_index), path(baldur_norm_vcf), path(baldur_norm_vcf_index)
+    tuple path(mt_ref), path(mt_ref_index)
+
+    output:
+    path("${input_bam.getBaseName()}.snv_indel.csv")
+    path("${input_bam.getBaseName()}.deletions.csv")
+
+    script:
+    """
+    set -euo pipefail
+
+    # set up temp cache directory for matplotlib
+    export MPLCONFIGDIR=${params.mplconfigdir}
+    mkdir -p \$MPLCONFIGDIR
+
+    make_read_variant_matrix.py \
+    --bam ${input_bam} \
+    --vcf ${baldur_norm_vcf} \
+    --output ${input_bam.getBaseName()} \
+    --ref ${mt_ref}
+
+    """
+}

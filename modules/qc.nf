@@ -106,7 +106,7 @@ process READ_LENGTH_PLOT {
 
 process QC_SUMMARY {
     
-    publishDir "${params.outdir}/${sample_id}/qc/", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/qc/", mode: 'copy'
     container params.python
     tag "${sample_id}"
 

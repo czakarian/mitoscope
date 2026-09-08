@@ -24,11 +24,11 @@ args = get_args()
 
 def get_variant_status(source):
     if source == "disease_df":
-        return "Disease Variant"
+        return "MITOMAP Disease Variant"
     elif source in {"variant_df", "disease_df,variant_df"}:
-        return "General Variant"
+        return "MITOMAP Variant"
     else:
-        return "Unknown Variant"
+        return "Not in MITOMAP"
 
 def resolve_af(row):
     if ',' not in row['AF']:
@@ -63,10 +63,10 @@ def create_heteroplasmy_plot(df):
 
     fig, ax = plt.subplots(figsize=(10, 8))
     sns.scatterplot(data=df, x='POS', y='AF', hue='DiseaseVariantStatus',
-        palette={"General Variant": "#00BFC4", "Disease Variant": "#F8766D", "Unknown Variant": "grey"},
+        palette={"MITOMAP Variant": "#00BFC4", "MITOMAP Disease Variant": "#F8766D", "Not in MITOMAP": "grey"},
         s=200, alpha=0.7, ax=ax)
 
-    label_data = df[df['DiseaseVariantStatus'].isin(['Disease Variant', 'Unknown Variant'])]
+    label_data = df[df['DiseaseVariantStatus'].isin(['MITOMAP Disease Variant', 'Not in MITOMAP'])]
     for _, row in label_data.iterrows():
         ax.text(row['POS'], row['AF'] + 0.03,  # Adjust vertical position (nudge)
             f"{row['REF']}{row['POS']}{row['ALT']}\n{row['AF']*100:.2f}%", 

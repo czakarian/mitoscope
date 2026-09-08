@@ -21,7 +21,7 @@ process KMER_SELECTION {
     cp ${kmc_pre} MT.k29.kmc_pre
     cp ${kmc_suf} MT.k29.kmc_suf
 
-    kmc_tools -t${task.cpus} filter MT.k29 -ci1 ${fastq_file} -fq -ci2500 /dev/stdout | tr ' ' '\t' | gzip > ${sample_id}.kmer_selection.fastq.gz
+    kmc_tools -t${task.cpus} filter MT.k29 -ci1 ${fastq_file} -fq -ci${params.min_kmer_count} /dev/stdout | tr ' ' '\t' | gzip > ${sample_id}.kmer_selection.fastq.gz
     echo \$((\$(zcat ${sample_id}.kmer_selection.fastq.gz | wc -l) / 4)) > ${sample_id}.kmer_read_count.txt
 
     """

@@ -41,7 +41,7 @@ process MAKE_BLAST_DBS {
 
 process NUMT_DETECTION_SNIFFLES {
 
-    // publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{vcf,snf}", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{vcf,snf}", mode: 'copy'
     publishDir "${params.outdir}/${sample_id}/logs/", pattern: "*.log", mode: 'copy'
     container params.sniffles
     tag "${sample_id}"
@@ -140,7 +140,7 @@ process NUMT_DETECTION_MTDNA_INSERTIONS_TO_FASTA {
 
 process NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK {
 
-    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{tsv,txt}", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{tsv}", mode: 'copy'
     container params.blast
     tag "${sample_id}"
 
@@ -178,14 +178,13 @@ process NUMT_DETECTION_SUPPLEMENTARY {
 
     output:
     // tuple val(sample_id), path("${sample_id}.numts.SA.bam"), emit:bam
-    // path('examine.txt')
     path("${sample_id}.numts.SA.tsv")
 
     script:
     """
     set -euo pipefail
 
-    numt_detection_sa.py -i ${input_cram} -o ${sample_id} -r ${ref} > examine.txt
+    numt_detection_sa.py -i ${input_cram} -o ${sample_id} -r ${ref} -m ${params.numt_split_minsupport}
 
     """
 }

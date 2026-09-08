@@ -1,7 +1,7 @@
 process FILTER_NUMTS {
 
     publishDir path: "${params.outdir}/${sample_id}/alignments/", pattern: "*.{bam,bai}", mode: 'copy'
-    publishDir path: "${params.outdir}/${sample_id}/qc/methylation/", pattern: "*.png", mode: 'copy'
+    //publishDir path: "${params.outdir}/${sample_id}/qc/methylation/", pattern: "*.png", mode: 'copy'
     publishDir path: "${params.outdir}/${sample_id}/logs", pattern: "*.log", mode: 'copy'
     container params.python
     tag "${sample_id}"
