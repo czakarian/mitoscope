@@ -18,6 +18,7 @@ def get_args():
     parser.add_argument("-o", "--output", help="Optional output prefix", required=False, default="")
     parser.add_argument("-s", "--max_sc_threshold", type=int, help="Maximum unaligned softclipping allowed in a read.", required=False, default=200)
     parser.add_argument("-m", "--max_meth_threshold", type=float, help="Maximum proportion of read that can be methylated, otherwise filtered as NUMT.", required=False, default=0.5)
+    parser.add_argument("-c", "--skip-methylation", action='store_true', help="Indicate when methylation relating filtering should be skipped.")
     return parser.parse_args()
 
 args = get_args()
@@ -204,8 +205,11 @@ def is_NUMT(read_parts, max_unaligned_threshold, max_methylation_threshold, meth
     unaligned_per_read_list.append(unaligned_bases)
 
     ## 2. check methylation level for read
-    meth_level = methylated_read_portion(read_parts[0], meth_prob_likelihood)
-    meth_per_read_list.append(meth_level)
+    if args.skip_methylation == False:
+        meth_level = methylated_read_portion(read_parts[0], meth_prob_likelihood)
+        meth_per_read_list.append(meth_level)
+    else:
+        meth_level = 0
 
     if (unaligned_bases > max_unaligned_threshold) or (meth_level > max_methylation_threshold):
         return True
@@ -280,11 +284,12 @@ for line in fr:
 if read_parts:
     process_read_group(read_parts, read_counts, percent_meth_per_read, fw, fd, meth_prob_likelihood, ref_consuming_lengths, unaligned_per_read)
 
-## plot distribution of read methylation
-methylation_plot(percent_meth_per_read, meth_prob_likelihood)
+## plots
 plot_ref_consuming_lengths(ref_consuming_lengths)
 unaligned_plot(unaligned_per_read)
-combined_methylation_unaligned_plot(percent_meth_per_read, unaligned_per_read)
+if args.skip_methylation == False:
+    methylation_plot(percent_meth_per_read, meth_prob_likelihood)
+    combined_methylation_unaligned_plot(percent_meth_per_read, unaligned_per_read)
 
 ## close read/write files
 fr.close()

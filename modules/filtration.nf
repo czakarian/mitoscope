@@ -12,13 +12,17 @@ process FILTER_NUMTS {
     output:
     tuple val(sample_id), path("${sample_id}.mt.bam"), path("${sample_id}.mt.bam.bai"), emit: filtered_bam
     tuple val(sample_id), path("${sample_id}.discard.bam"), path("${sample_id}.discard.bam.bai")
-    path("${sample_id}.methylation_per_read.png")
-    path("${sample_id}.methylation_likelihood.png")
-    //path("${sample_id}.unaligned_sc_hist.png")
-    //path("${sample_id}.ref_consuming_hist_kde.png")
+    path("${sample_id}.methylation_per_read.png"), optional: true
+    path("${sample_id}.methylation_likelihood.png"), optional: true
+    path("${sample_id}.unaligned_sc_hist.png"), optional: true
+    path("${sample_id}.comb_meth_unaligned_plot.png"), optional: true
+    path("${sample_id}.ref_consuming_hist_kde.png"), optional: true
     path("filter_bam.log")
 
     script:
+    def methylation_flag = params.skip_methylation == true ? '--skip-methylation' : 
+                    params.skip_methylation == false  ? '' :
+                    null
     """
     set -euo pipefail
     
@@ -26,7 +30,7 @@ process FILTER_NUMTS {
     export MPLCONFIGDIR=${params.mplconfigdir}
     mkdir -p \$MPLCONFIGDIR
 
-    filter_bam.py -i ${bam_file} \
+    filter_bam.py -i ${bam_file} ${methylation_flag} \
     --max_sc_threshold ${params.max_sc_threshold} \
     --max_meth_threshold ${params.max_meth_threshold_per_read} > filter_bam.log
     """
