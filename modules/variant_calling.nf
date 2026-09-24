@@ -33,8 +33,7 @@ process VARIANT_CALLS_BALDUR {
 }
 
 process NORMALIZE_BALDUR_VCF {
-
-    // publishDir "${params.outdir}/${sample_id}/variants/baldur/", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/variants/", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
@@ -48,41 +47,13 @@ process NORMALIZE_BALDUR_VCF {
     """
     set -euo pipefail
 
-    bcftools norm --multiallelics -both ${baldur_vcf} | bcftools norm --atomize --atom-overlaps . | bcftools view -i 'FMT/HPL>=${params.snv_soft_threshold}' -f PASS -Oz -o ${baldur_vcf.getBaseName(2)}.norm.vcf.gz 
+    bcftools norm --no-version --multiallelics -both ${baldur_vcf} \
+    | bcftools norm --no-version --atomize --atom-overlaps . \
+    | bcftools annotate -x INFO/DP,INFO/INDEL \
+    | bcftools view --no-version -i 'FMT/HPL>=${params.snv_soft_threshold}' -f PASS -Oz -o ${baldur_vcf.getBaseName(2)}.norm.vcf.gz 
+    
     bcftools index --tbi ${baldur_vcf.getBaseName(2)}.norm.vcf.gz  
 
-    """
-}
-
-
-process ANNOTATE_BALDUR {
-    
-    //publishDir "${params.outdir}/${sample_id}/variants/", pattern: "*.mitomap.txt", mode: 'copy'
-    publishDir "${params.outdir}/${sample_id}/variants/", pattern: "*.heteroplasmy.png", mode: 'copy'
-    container params.python
-    tag "${sample_id}"
-
-    input:
-    tuple val(sample_id), path(baldur_norm_vcf), path(baldur_norm_vcf_index)
-    path mitomap_anno_file
-
-    output:
-    tuple val(sample_id), path("${baldur_norm_vcf.getBaseName(3)}.mitomap.txt"), emit: mitomap_txt
-    path("${baldur_norm_vcf.getBaseName(3)}.heteroplasmy.png") 
-
-    script:
-    """
-    set -euo pipefail
-
-    # set up temp cache directory for matplotlib
-    export MPLCONFIGDIR=${params.mplconfigdir}
-    mkdir -p \$MPLCONFIGDIR
-
-    annotate.py \
-    --input ${baldur_norm_vcf} \
-    --output_prefix ${baldur_norm_vcf.getBaseName(3)} \
-    --annotations ${mitomap_anno_file} \
-    --caller baldur 
     """
 }
 
@@ -95,16 +66,18 @@ process VEP_BALDUR_VCF {
     tuple val(sample_id), path(baldur_norm_vcf), path(baldur_norm_vcf_index)
     tuple path(mt_ref), path(mt_ref_index)
     path vep_cache_dir
+    path vep_plugin_dir
+    tuple path(gnomad_vcf), path(gnomad_vcf_index)
 
     output:
     tuple val(sample_id), path("${baldur_norm_vcf.getBaseName(2)}.vep.vcf.gz"), path("${baldur_norm_vcf.getBaseName(2)}.vep.vcf.gz.tbi"), emit: vep_vcf
-    // path("${baldur_norm_vcf.getBaseName(2)}.vep.tsv")
 
     script:
     """
     set -euo pipefail
 
     vep --input_file ${baldur_norm_vcf} \
+    --safe \
     --cache \
     --dir_cache ${vep_cache_dir} \
     --offline \
@@ -119,53 +92,75 @@ process VEP_BALDUR_VCF {
     --biotype \
     --no_stats \
     --allow_non_variant \
-    --distance 0
+    --distance 0 \
+    --dir_plugins ${vep_plugin_dir} \
+    --plugin gnomADMt,file=${gnomad_vcf},fields=AN:AC_hom:AC_het:AF_hom:AF_het:max_hl
 
     tabix -p vcf ${baldur_norm_vcf.getBaseName(2)}.vep.vcf.gz
-
-    vep --input_file ${baldur_norm_vcf} \
-    --cache \
-    --dir_cache ${vep_cache_dir} \
-    --offline \
-    --fork ${task.cpus} \
-    --fasta ${mt_ref} \
-    --tab \
-    --output_file ${baldur_norm_vcf.getBaseName(2)}.vep.tsv \
-    --hgvs \
-    --protein \
-    --symbol \
-    --biotype \
-    --no_stats \
-    --allow_non_variant \
-    --distance 0
 
     """
 
 }
 
 process ADD_MITOMAP_TO_BALDUR_VCF {
+    //publishDir "${params.outdir}/${sample_id}/variants/", mode: 'copy'
+    container params.bcftools
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(input_vcf), path(input_vcf_index)
+    path mitomap_annos
+
+    output:
+    tuple val(sample_id), path("${sample_id}.mt.baldur.mitomap.vcf.gz"), path("${sample_id}.mt.baldur.mitomap.vcf.gz.tbi"), emit: anno_vcf
+
+    script:
+    """
+
+    echo '##INFO=<ID=MITOMAP_Disease,Number=A,Type=String,Description="MITOMAP associated diseases.">
+    ##INFO=<ID=MITOMAP_Disease_Status,Number=A,Type=String,Description="MITOMAP disease status.">
+    ##INFO=<ID=MITOMAP_GenBank_AC,Number=A,Type=Float,Description="MITOMAP GenBank sample count.">
+    ##INFO=<ID=MITOMAP_GenBank_AF,Number=A,Type=Float,Description="MITOMAP GenBank population allele frequency.">' > header.txt
+
+    bcftools annotate --no-version ${input_vcf} \
+        -c CHROM,POS,REF,ALT,INFO/MITOMAP_Disease,INFO/MITOMAP_Disease_Status,INFO/MITOMAP_GenBank_AC,INFO/MITOMAP_GenBank_AF \
+        --annotations ${mitomap_annos} \
+        --header-lines header.txt \
+        --threads ${task.cpus} \
+        --output-type z \
+        --write-index=tbi \
+        --output ${sample_id}.mt.baldur.mitomap.vcf.gz 
+
+    """
+
+}
+
+
+process ADD_HELIX_TO_BALDUR_VCF {
     publishDir "${params.outdir}/${sample_id}/variants/", mode: 'copy'
     container params.bcftools
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), path(input_vcf), path(input_vcf_index), path(mitomap_tsv)
+    tuple val(sample_id), path(input_vcf), path(input_vcf_index)
+    path helix_annos
 
     output:
     tuple val(sample_id), path("${sample_id}.mt.baldur.annotated.vcf.gz"), path("${sample_id}.mt.baldur.annotated.vcf.gz.tbi"), emit: anno_vcf
 
     script:
     """
-    
-    cut -f 1-5,35 ${mitomap_tsv} | tail +2 > subset_mitomap.tab
-    bgzip subset_mitomap.tab
-    tabix -s1 -b2 -e2 subset_mitomap.tab.gz
 
-    echo '##INFO=<ID=MITOMAP,Number=1,Type=String,Description="Annotations from MITOMAP. Format: Gene.Name|Gene.Type|Amino.Acid.Change|GB.Freq.FL|GB.Freq.CR|GB.Seqs.FL|GB.Seqs.CR|Homoplasmy|Heteroplasmy|Disease.Status|References|Additional.Annotations|MitoTIP">' > header.txt
+    echo '##INFO=<ID=Helix_Counts_Hom,Number=A,Type=String,Description="HelixMTdb homoplasmic population sample count.">
+    ##INFO=<ID=Helix_AF_Hom,Number=A,Type=String,Description="HelixMTdb homoplasmic population allele frequency.">
+    ##INFO=<ID=Helix_Counts_Het,Number=A,Type=String,Description="HelixMTdb heteroplasmic population sample count.">
+    ##INFO=<ID=Helix_AF_Het,Number=A,Type=String,Description="HelixMTdb heteroplasmic population allele frequency.">
+    ##INFO=<ID=Helix_max_ARF,Number=A,Type=String,Description="HelixMTdb maximum heteroplasmy fraction across heteroplasmic samples.">
+    ##INFO=<ID=Helix_mean_ARF,Number=A,Type=String,Description="HelixMTdb average heteroplasmy fraction across heteroplasmic samples.">' > header.txt
 
-    bcftools annotate ${input_vcf} \
-        -c CHROM,POS,-,REF,ALT,INFO/MITOMAP \
-        --annotations subset_mitomap.tab.gz \
+    bcftools annotate --no-version ${input_vcf} \
+        -c CHROM,POS,REF,ALT,INFO/Helix_Counts_Hom,INFO/Helix_AF_Hom,INFO/Helix_Counts_Het,INFO/Helix_AF_Het,INFO/Helix_max_ARF,INFO/Helix_mean_ARF \
+        --annotations ${helix_annos} \
         --header-lines header.txt \
         --threads ${task.cpus} \
         --output-type z \
@@ -174,6 +169,33 @@ process ADD_MITOMAP_TO_BALDUR_VCF {
 
     """
 
+}
+
+
+process PLOT_HETEROPLASMY {
+    
+    publishDir "${params.outdir}/${sample_id}/variants/", pattern: "*.heteroplasmy.png", mode: 'copy'
+    container params.python
+    tag "${sample_id}"
+
+    input:
+    tuple val(sample_id), path(anno_vcf), path(anno_vcf_index)
+
+    output:
+    path("${anno_vcf.getBaseName(3)}.heteroplasmy.png") 
+
+    script:
+    """
+    set -euo pipefail
+
+    # set up temp cache directory for matplotlib
+    export MPLCONFIGDIR=${params.mplconfigdir}
+    mkdir -p \$MPLCONFIGDIR
+
+    heteroplasmy_plot.py \
+    --input ${anno_vcf} \
+    --output_prefix ${anno_vcf.getBaseName(3)}
+    """
 }
 
 process MERGE_BALDUR_VCFS {

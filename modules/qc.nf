@@ -132,8 +132,7 @@ process QC_SUMMARY {
 }
 
 process QC_SUMMARY_FOR_UNALIGNED_INPUT {
-    
-    publishDir "${params.outdir}/${sample_id}/qc/", mode: 'copy'
+    //publishDir "${params.outdir}/${sample_id}/qc/", mode: 'copy'
     container params.python
     tag "${sample_id}"
 
