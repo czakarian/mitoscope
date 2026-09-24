@@ -1,6 +1,6 @@
 # Mitoscope
 
-Mitoscope is a long-read specific mitochondrial analysis workflow to assembly mtDNA, perform heteroplasmic variant calling (of SNVs, indels, and SVs), and characterize non-reference NUMTs. It is built as a fully containerized Nextflow workflow using Singularity images and can be run on either ONT or PacBio data. Raw sequencing data or aligned reads are both accepted as input.
+MitoScope is a scalable end-to-end workflow for long-read specific mtDNA and NUMT analysis. MitoScope integrates five key modules: 1) mtDNA selection, 2) variant calling and annotation, 3) assembly generation, 4) quality control, and 5) optional NUMT profiling. It is written using Nextflow and fully containerized using Singularity images. It can be run on either ONT or PacBio data and accepts raw sequencing data or aligned reads as input.
 
 **mitoScope is currently in active development. Open an [issue](https://github.com/czakarian/mitoscope/issues/new) if you find a problem or have a suggestion.**
 
@@ -16,7 +16,7 @@ Mitoscope is a long-read specific mitochondrial analysis workflow to assembly mt
 - Singularity
 ## Setup
 ```bash
-VERSION=0.4.0
+VERSION=0.5.0
 wget https://github.com/czakarian/mitoscope/archive/refs/tags/v${VERSION}.tar.gz
 tar xvf v${VERSION}.tar.gz && rm v${VERSION}.tar.gz
 cd mitoscope-${VERSION}/
@@ -52,6 +52,8 @@ reference: "/path/to/ref/for/cram/GRCH38.fa"
 #### Optional Parameters
 
 To call non-reference NUMT candidates, add `numt_profiling: true` to the yaml file. This functionality is turned off by default to otherwise reduce computational load and is only available for use with aligned input.
+
+To skip methylation related NUMT filtration and methylation calling add `skip_methylation: true` to the yaml file. This can be used to process long-read amplicon sequencing data or other long-read data that lacks methylation calls.
 
 ### Sample Manifest
 One of the required parameters in the yaml file is the path to a sample manifest (`samplesheet`). See below or `example_sample_manifest.csv` for example.
