@@ -16,7 +16,7 @@ MitoScope is a scalable end-to-end workflow for long-read specific mtDNA and NUM
 - Singularity
 ## Setup
 ```bash
-VERSION=0.5.0
+VERSION=0.6.0
 wget https://github.com/czakarian/mitoscope/archive/refs/tags/v${VERSION}.tar.gz
 tar xvf v${VERSION}.tar.gz && rm v${VERSION}.tar.gz
 cd mitoscope-${VERSION}/
