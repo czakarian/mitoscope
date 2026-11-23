@@ -12,7 +12,7 @@ process MAKE_ROTATED_MT_REF {
     """
     set -euo pipefail
 
-    rotate.py -i ${mt_ref} -o MT_rotated.fasta
+    rotate.py -s ${params.mt_ref_shift} -i ${mt_ref} -o MT_rotated.fasta
     """
 }
 
@@ -32,17 +32,21 @@ process MAKE_BLAST_DBS {
     """
     set -euo pipefail
 
-    makeblastdb -in ${hg38_ref} -dbtype nucl -out blast/hg38
-    makeblastdb -in ${mt_ref} -dbtype nucl -out blast/mt
-    makeblastdb -in ${mt_ref_rotated} -dbtype nucl -out blast/mt_rotated
+    cp ${hg38_ref} hg38_with_mt_rt.fasta
+    cp ${mt_ref} mt_with_mt_rt.fasta
+    cat ${mt_ref_rotated} >> hg38_with_mt_rt.fasta
+    cat ${mt_ref_rotated} >> mt_with_mt_rt.fasta
+
+    makeblastdb -in hg38_with_mt_rt.fasta -dbtype nucl -out blast/hg38
+    makeblastdb -in mt_with_mt_rt.fasta -dbtype nucl -out blast/mt
 
     """
 }
 
 process NUMT_DETECTION_SNIFFLES {
 
-    //publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{vcf,snf}", mode: 'copy'
-    publishDir "${params.outdir}/${sample_id}/logs/", pattern: "*.log", mode: 'copy'
+    // publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{vcf,snf}", mode: 'copy'
+    // publishDir "${params.outdir}/${sample_id}/logs/", pattern: "*.log", mode: 'copy'
     container params.sniffles
     tag "${sample_id}"
 
@@ -94,7 +98,7 @@ process NUMT_DETECTION_INSERTIONS_TO_FASTA {
 
 process NUMT_DETECTION_INSERTIONS_BLAST {
 
-    //publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{txt}", mode: 'copy'
+    // publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{txt}", mode: 'copy'
     container params.blast
     tag "${sample_id}"
 
@@ -104,21 +108,19 @@ process NUMT_DETECTION_INSERTIONS_BLAST {
 
     output:
     tuple val(sample_id), path("${sample_id}.numts.INS.blast.txt"), emit: mt_blast
-    tuple val(sample_id), path("${sample_id}.numts.INS.blast.rotated.txt"), emit: mt_blast_rotated
 
     script:
     """
     set -euo pipefail
 
     blastn -query ${input_fasta} -out "${sample_id}.numts.INS.blast.txt" -db ${blast_db}/mt -word_size 25 -outfmt 6 -num_threads ${task.cpus} -task blastn -perc_identity 95
-    blastn -query ${input_fasta} -out "${sample_id}.numts.INS.blast.rotated.txt" -db ${blast_db}/mt_rotated -word_size 25 -outfmt 6 -num_threads ${task.cpus} -task blastn -perc_identity 95
 
     """
 }
 
 process NUMT_DETECTION_MTDNA_INSERTIONS_TO_FASTA {
 
-    //publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{fasta}", mode: 'copy'
+    publishDir "${params.outdir}/${sample_id}/numts/", pattern: "*.{fasta}", mode: 'copy'
     container params.flye
     tag "${sample_id}"
 
@@ -126,7 +128,7 @@ process NUMT_DETECTION_MTDNA_INSERTIONS_TO_FASTA {
     tuple val(sample_id), path(input_fasta), path(blast_output)
 
     output:
-    tuple val(sample_id), path("${sample_id}.numts.INS.blast.mtDNA.fasta")
+    tuple val(sample_id), path("${sample_id}.numts.INS.blast.mtDNA.fasta"), emit: fasta
 
     script:
     """
@@ -156,14 +158,34 @@ process NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK {
     """
     set -euo pipefail
 
-    blastn -query ${input_fasta} -db ${blast_db}/hg38 -word_size 25 -outfmt 6 -num_threads ${task.cpus} -task blastn -perc_identity 95 -max_target_seqs 1 | awk '\$2 == "chrM"' > "${sample_id}.numts.INS.blast.mtDNA.txt"
-    
+    blastn -query ${input_fasta} -db ${blast_db}/hg38 -word_size 25 -outfmt 6 -num_threads ${task.cpus} -task blastn -perc_identity 95 -max_target_seqs 1 | awk '\$2 == "chrM" || \$2 == "MT_rotated_${params.mt_ref_shift}"' > "${sample_id}.numts.INS.blast.mtDNA.txt"
+
+    ### rotated any blast hits to the rotated mt reference back to original rotation 
+    awk '{
+        if (\$9 > \$10) {
+            start = \$10
+            end = \$9
+        } else {
+            start = \$9
+            end = \$10
+        }
+        if (\$2 != "chrM") {
+            \$2 = "chrM"
+            start_v2 = (start + ${params.mt_ref_shift}) % 16569
+            end_v2 = (end + ${params.mt_ref_shift}) % 16569
+        } else {
+            start_v2 = start
+            end_v2 = end
+        }
+        \$9 = start_v2
+        \$10 = end_v2
+        print
+    }' "${sample_id}.numts.INS.blast.mtDNA.txt" >  "${sample_id}.numts.INS.blast.mtDNA.rotated.txt"
+
     echo -e "nuc_chrom\tnuc_position\tmt_start\tmt_end\tDR\tDV\tAF" > "${sample_id}.numts.INS.tsv"
-    awk '{split(\$1, id_parts, "-"); print id_parts[1]"\t"id_parts[2]"\t"\$9"\t"\$10"\t"id_parts[3]"\t"id_parts[4]"\t"id_parts[4]/(id_parts[3]+id_parts[4])}' "${sample_id}.numts.INS.blast.mtDNA.txt" >> "${sample_id}.numts.INS.tsv"
+    awk '{split(\$1, id_parts, "-"); print id_parts[1]"\t"id_parts[2]"\t"\$9"\t"\$10"\t"id_parts[3]"\t"id_parts[4]"\t"id_parts[4]/(id_parts[3]+id_parts[4])}' "${sample_id}.numts.INS.blast.mtDNA.rotated.txt" >> "${sample_id}.numts.INS.tsv"
     """
 }
-
-
 
 
 process NUMT_DETECTION_SUPPLEMENTARY {

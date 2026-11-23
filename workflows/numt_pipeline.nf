@@ -30,12 +30,12 @@ workflow NUMT_PIPELINE {
         )
 
         NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK(
-            NUMT_DETECTION_MTDNA_INSERTIONS_TO_FASTA.out,
+            NUMT_DETECTION_MTDNA_INSERTIONS_TO_FASTA.out.fasta,
             blast_db_ch
         )
 
         NUMT_DETECTION_PLOT(
-            NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK.out.blast_output,
+            NUMT_DETECTION_MTDNA_INSERTIONS_BLAST_CHECK.out.tsv_output,
             params.circos_bed
         )
 

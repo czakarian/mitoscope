@@ -59,23 +59,35 @@ for sector in circos.sectors:
         track.axis(fc=color, lw=1)
 
 
-# ---- Load your MT-to-nuclear mappings ----
-# Example: columns = ["mt_start", "mt_end", "chr", "chr_start", "chr_end"]
-links_df = pd.read_csv(input_file, sep="\t", header=None, names=['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen', 'qstart', 'qend', 'sstart', 'send', 'evalue', 'bitscore'])
-links_df = links_df[['sstart', 'send', 'qseqid', 'length']]
-links_df[['refchrom', 'refstart', 'DR', 'DV']] = links_df['qseqid'].str.split('-', expand=True)
-links_df['refend'] = links_df['refstart'].astype(int) + 1
-links_df = links_df[links_df['refchrom'] != 'chrM']
-links_df = links_df[links_df['refchrom'].isin(chr_names)]
+# ---- Load mappings ----
+links_df = pd.read_csv(input_file, sep="\t")
+links_df = links_df[links_df['nuc_chrom'] != 'chrM']
+links_df = links_df[links_df['nuc_chrom'].isin(chr_names)]
 
-
-# ---- Plot each link ----
+new_rows = []
 for _, row in links_df.iterrows():
-    region_mt = ("chrMT", int(row["sstart"]*scale_factor), int(row["send"]*scale_factor))
-    region_nuc = (row["refchrom"], int(row["refstart"]), int(row["refend"]))
+    start = row["mt_start"]
+    end = row["mt_end"]
+
+    if start > end:
+        row1 = row.copy()
+        row2 = row.copy()
+
+        row1["mt_end"] = mt_length
+        row2["mt_start"] = 0
+
+        new_rows.extend([row1, row2])
+    else:
+        new_rows.append(row)
+
+new_df = pd.DataFrame(new_rows)
+
+# ---- Plot links ----
+for _, row in new_df.iterrows():
+    region_mt = ("chrMT", int(row["mt_start"]*scale_factor), int(row["mt_end"]*scale_factor))
+    region_nuc = (row["nuc_chrom"], int(row["nuc_position"]), int(row["nuc_position"]) + 1)
     # Color based on nuclear chromosome
-    color = chr_name2color.get(row["refchrom"], "blue")
+    color = chr_name2color.get(row["nuc_chrom"], "blue")
     circos.link(region_mt, region_nuc, color=color, alpha=0.4, lw=0.5)
 
-# ---- Save ----
 circos.savefig(output_file, dpi=300)
